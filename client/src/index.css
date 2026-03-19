@@ -43,39 +43,43 @@
 }
 
 :root {
-  --primary: var(--color-blue-700);
-  --primary-foreground: var(--color-blue-50);
-  --sidebar-primary: var(--color-blue-600);
-  --sidebar-primary-foreground: var(--color-blue-50);
-  --chart-1: var(--color-blue-300);
-  --chart-2: var(--color-blue-500);
-  --chart-3: var(--color-blue-600);
-  --chart-4: var(--color-blue-700);
-  --chart-5: var(--color-blue-800);
-  --radius: 0.65rem;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.235 0.015 65);
+  --radius: 1rem;
+  /* Soft pastel baby palette */
+  --background: oklch(0.98 0.01 280);
+  --foreground: oklch(0.2 0.02 280);
   --card: oklch(1 0 0);
-  --card-foreground: oklch(0.235 0.015 65);
+  --card-foreground: oklch(0.2 0.02 280);
   --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.235 0.015 65);
-  --secondary: oklch(0.98 0.001 286.375);
-  --secondary-foreground: oklch(0.4 0.015 65);
-  --muted: oklch(0.967 0.001 286.375);
-  --muted-foreground: oklch(0.552 0.016 285.938);
-  --accent: oklch(0.967 0.001 286.375);
-  --accent-foreground: oklch(0.141 0.005 285.823);
-  --destructive: oklch(0.577 0.245 27.325);
-  --destructive-foreground: oklch(0.985 0 0);
-  --border: oklch(0.92 0.004 286.32);
-  --input: oklch(0.92 0.004 286.32);
-  --ring: oklch(0.623 0.214 259.815);
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.235 0.015 65);
-  --sidebar-accent: oklch(0.967 0.001 286.375);
-  --sidebar-accent-foreground: oklch(0.141 0.005 285.823);
-  --sidebar-border: oklch(0.92 0.004 286.32);
-  --sidebar-ring: oklch(0.623 0.214 259.815);
+  --popover-foreground: oklch(0.2 0.02 280);
+  /* Soft purple-pink primary */
+  --primary: oklch(0.62 0.18 310);
+  --primary-foreground: oklch(1 0 0);
+  /* Light lavender secondary */
+  --secondary: oklch(0.94 0.04 290);
+  --secondary-foreground: oklch(0.35 0.08 290);
+  --muted: oklch(0.95 0.02 280);
+  --muted-foreground: oklch(0.55 0.04 280);
+  /* Soft mint accent */
+  --accent: oklch(0.92 0.06 165);
+  --accent-foreground: oklch(0.3 0.1 165);
+  --destructive: oklch(0.6 0.2 25);
+  --destructive-foreground: oklch(1 0 0);
+  --border: oklch(0.9 0.02 280);
+  --input: oklch(0.9 0.02 280);
+  --ring: oklch(0.62 0.18 310);
+  --chart-1: oklch(0.62 0.18 310);
+  --chart-2: oklch(0.7 0.15 200);
+  --chart-3: oklch(0.75 0.15 340);
+  --chart-4: oklch(0.8 0.12 165);
+  --chart-5: oklch(0.7 0.14 60);
+  --sidebar: oklch(0.97 0.015 280);
+  --sidebar-foreground: oklch(0.2 0.02 280);
+  --sidebar-primary: oklch(0.62 0.18 310);
+  --sidebar-primary-foreground: oklch(1 0 0);
+  --sidebar-accent: oklch(0.92 0.06 165);
+  --sidebar-accent-foreground: oklch(0.3 0.1 165);
+  --sidebar-border: oklch(0.9 0.02 280);
+  --sidebar-ring: oklch(0.62 0.18 310);
 }
 
 .dark {
@@ -118,7 +122,9 @@
     @apply border-border outline-ring/50;
   }
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground font-sans;
+    -webkit-tap-highlight-color: transparent;
+    overscroll-behavior: none;
   }
   button:not(:disabled),
   [role="button"]:not([aria-disabled="true"]),
@@ -151,9 +157,30 @@
     width: 100%;
     margin-left: auto;
     margin-right: auto;
-    padding-left: 1rem; /* 16px - mobile padding */
+    padding-left: 1rem;
     padding-right: 1rem;
+    max-width: 480px;
   }
+
+  /* Timer display */
+  .timer-display {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum";
+  }
+
+  /* Child pill colors */
+  .child-pill-nica { background-color: oklch(0.92 0.06 340); color: oklch(0.4 0.15 340); }
+  .child-pill-nici { background-color: oklch(0.9 0.07 200); color: oklch(0.35 0.15 200); }
+  .child-pill-nica.active { background-color: oklch(0.75 0.15 340); color: white; }
+  .child-pill-nici.active { background-color: oklch(0.7 0.15 200); color: white; }
+
+  /* Pulse animation for active timer */
+  @keyframes pulse-ring {
+    0% { box-shadow: 0 0 0 0 oklch(0.62 0.18 310 / 0.4); }
+    70% { box-shadow: 0 0 0 12px oklch(0.62 0.18 310 / 0); }
+    100% { box-shadow: 0 0 0 0 oklch(0.62 0.18 310 / 0); }
+  }
+  .timer-active { animation: pulse-ring 1.5s ease-out infinite; }
 
   .flex {
     min-height: 0;

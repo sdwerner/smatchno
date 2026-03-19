@@ -1,5 +1,6 @@
 import "dotenv/config";
 import express from "express";
+import { startTelegramScheduler } from "../telegramScheduler";
 import { createServer } from "http";
 import net from "net";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
@@ -59,6 +60,7 @@ async function startServer() {
 
   server.listen(port, () => {
     console.log(`Server running on http://localhost:${port}/`);
+    startTelegramScheduler();
   });
 }
 

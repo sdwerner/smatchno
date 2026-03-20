@@ -6,6 +6,7 @@ import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import { LanguageProvider } from "./contexts/LanguageContext";
 import { ChildProvider } from "./contexts/ChildContext";
+import { TelegramProvider } from "./contexts/TelegramContext";
 import AppLayout from "./components/AppLayout";
 import FeedingPage from "./pages/FeedingPage";
 import DiaperPage from "./pages/DiaperPage";
@@ -30,18 +31,20 @@ function Router() {
 function App() {
   return (
     <ErrorBoundary>
-      <ThemeProvider defaultTheme="light">
-        <LanguageProvider>
-          <ChildProvider>
-            <TooltipProvider>
-              <Toaster position="top-center" />
-              <AppLayout>
-                <Router />
-              </AppLayout>
-            </TooltipProvider>
-          </ChildProvider>
-        </LanguageProvider>
-      </ThemeProvider>
+      <TelegramProvider>
+        <ThemeProvider defaultTheme="light">
+          <LanguageProvider>
+            <ChildProvider>
+              <TooltipProvider>
+                <Toaster position="top-center" />
+                <AppLayout>
+                  <Router />
+                </AppLayout>
+              </TooltipProvider>
+            </ChildProvider>
+          </LanguageProvider>
+        </ThemeProvider>
+      </TelegramProvider>
     </ErrorBoundary>
   );
 }

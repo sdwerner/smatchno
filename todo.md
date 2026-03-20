@@ -45,3 +45,15 @@
 - [x] Vitest tests for feeding and diaper routers
 - [x] Vitest test for Telegram scheduler
 - [x] Final checkpoint and delivery
+
+## Telegram Native Upgrade
+
+- [x] Save TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID as secrets
+- [x] Register bot commands via BotFather API
+- [x] Webhook handler for incoming Telegram messages
+- [x] Bot commands: /feed, /diaper, /bottle, /summary, /today, /last, /help
+- [x] Feeding reminder engine (3h threshold, 24/7)
+- [x] Telegram Mini App launch button in bot
+- [x] Telegram initData validation for auth (TelegramContext)
+- [x] Tests for bot command handlers (12 tests, all passing)
+- [ ] Push updated code to GitHub

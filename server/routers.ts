@@ -172,7 +172,11 @@ const telegramRouter = router({
 
 export async function sendTelegramDigest(dateMs: number) {
   const settings = await getTelegramSettings();
-  if (!settings?.botToken || !settings?.chatId || !settings.enabled) return { skipped: true };
+  // Fall back to env vars if DB settings not configured
+  const botToken = settings?.botToken || process.env.TELEGRAM_BOT_TOKEN;
+  const chatId = settings?.chatId || process.env.TELEGRAM_CHAT_ID;
+  if (!botToken || !chatId) return { skipped: true };
+  if (settings && !settings.enabled) return { skipped: true };
 
   const dayStart = new Date(dateMs);
   dayStart.setHours(0, 0, 0, 0);
@@ -181,7 +185,7 @@ export async function sendTelegramDigest(dateMs: number) {
 
   const [nicaFeeds, niciFeeds, nicaDiapers, niciDiapers] = await Promise.all([
     getFeedingSessionsForDay("nica", dayStart.getTime(), dayEnd.getTime()),
-    getFeedingSessionsForDay("nici", niciStart(dayStart), dayEnd.getTime()),
+    getFeedingSessionsForDay("nici", dayStart.getTime(), dayEnd.getTime()),
     getDiaperChangesForDay("nica", dayStart.getTime(), dayEnd.getTime()),
     getDiaperChangesForDay("nici", dayStart.getTime(), dayEnd.getTime()),
   ]);
@@ -230,11 +234,11 @@ export async function sendTelegramDigest(dateMs: number) {
   ].join("\n");
 
   const res = await fetch(
-    `https://api.telegram.org/bot${settings.botToken}/sendMessage`,
+    `https://api.telegram.org/bot${botToken}/sendMessage`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ chat_id: settings.chatId, text: msg, parse_mode: "Markdown" }),
+      body: JSON.stringify({ chat_id: chatId, text: msg, parse_mode: "Markdown" }),
     }
   );
   if (!res.ok) {
@@ -242,10 +246,6 @@ export async function sendTelegramDigest(dateMs: number) {
     throw new Error(`Telegram API error: ${err}`);
   }
   return { success: true };
-}
-
-function niciStart(dayStart: Date) {
-  return dayStart.getTime();
 }
 
 // ─── App Router ───────────────────────────────────────────────────────────────

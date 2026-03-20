@@ -2,6 +2,7 @@ import { useAuth } from "@/_core/hooks/useAuth";
 import { getLoginUrl } from "@/const";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useChild } from "@/contexts/ChildContext";
+import { useTelegram } from "@/contexts/TelegramContext";
 import { useLocation } from "wouter";
 import { Baby, Droplets, BarChart2, Settings } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -14,17 +15,22 @@ interface AppLayoutProps {
 
 export default function AppLayout({ children }: AppLayoutProps) {
   const { isAuthenticated, loading } = useAuth();
+  const { isTelegramApp, tgUser } = useTelegram();
   const { t, locale, setLocale } = useLanguage();
   const { child, setChild } = useChild();
   const [location, navigate] = useLocation();
 
-  // Redirect to login if not authenticated
-  if (!loading && !isAuthenticated && location !== "/login") {
+  // In Telegram Mini App, skip Manus OAuth — user is authenticated via Telegram
+  const effectivelyAuthenticated = isTelegramApp ? true : isAuthenticated;
+  const effectivelyLoading = isTelegramApp ? false : loading;
+
+  // Redirect to login if not authenticated (only for non-Telegram users)
+  if (!effectivelyLoading && !effectivelyAuthenticated && location !== "/login") {
     navigate("/login");
     return null;
   }
 
-  if (loading) {
+  if (effectivelyLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="text-center space-y-3">
@@ -35,7 +41,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
     );
   }
 
-  if (!isAuthenticated) {
+  if (!effectivelyAuthenticated) {
     return <>{children}</>;
   }
 
@@ -51,8 +57,13 @@ export default function AppLayout({ children }: AppLayoutProps) {
       {/* Header */}
       <header className="sticky top-0 z-40 bg-card border-b border-border shadow-sm">
         <div className="px-4 py-3 flex items-center justify-between gap-3">
-          {/* App name */}
-          <span className="font-bold text-primary text-lg">🍼 {t("appName")}</span>
+          {/* App name / Telegram user */}
+          <div className="flex flex-col leading-tight">
+            <span className="font-bold text-primary text-base">🍼 {t("appName")}</span>
+            {isTelegramApp && tgUser && (
+              <span className="text-[10px] text-muted-foreground">{tgUser.first_name}</span>
+            )}
+          </div>
 
           {/* Child selector */}
           <div className="flex items-center gap-1.5 flex-1 justify-center">

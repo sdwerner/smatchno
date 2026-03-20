@@ -1,6 +1,8 @@
 import "dotenv/config";
 import express from "express";
 import { startTelegramScheduler } from "../telegramScheduler";
+import { startFeedingReminder } from "../feedingReminder";
+import { handleWebhookUpdate, setWebhook } from "../telegramBot";
 import { createServer } from "http";
 import net from "net";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
@@ -36,6 +38,16 @@ async function startServer() {
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
   // OAuth callback under /api/oauth/callback
   registerOAuthRoutes(app);
+
+  // Telegram webhook endpoint
+  app.post("/api/telegram/webhook", async (req, res) => {
+    try {
+      await handleWebhookUpdate(req.body);
+    } catch (err) {
+      console.error("[Webhook] Error:", err);
+    }
+    res.sendStatus(200);
+  });
   // tRPC API
   app.use(
     "/api/trpc",
@@ -58,9 +70,20 @@ async function startServer() {
     console.log(`Port ${preferredPort} is busy, using port ${port} instead`);
   }
 
-  server.listen(port, () => {
+  server.listen(port, async () => {
     console.log(`Server running on http://localhost:${port}/`);
     startTelegramScheduler();
+    startFeedingReminder();
+    // Register Telegram webhook if token is available
+    const token = process.env.TELEGRAM_BOT_TOKEN;
+    const appUrl = process.env.VITE_APP_URL || "https://babytrackr-gszrhnzr.manus.space";
+    if (token && process.env.NODE_ENV === "production") {
+      try {
+        await setWebhook(`${appUrl}/api/telegram/webhook`);
+      } catch (err) {
+        console.error("[Webhook] Failed to register:", err);
+      }
+    }
   });
 }
 

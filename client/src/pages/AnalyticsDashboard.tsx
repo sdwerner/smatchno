@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import packageJson from "../../../package.json";
 import { trpc } from "@/lib/trpc";
 import { startOfDay, endOfDay, subDays, format, addDays } from "date-fns";
 import {
@@ -382,6 +383,13 @@ export default function AnalyticsDashboard() {
           </div>
         )}
       </div>
+
+      {/* Version footer */}
+      <footer className="text-center py-4 pb-8">
+        <p className="text-xs text-muted-foreground/50">
+          🍼 Baby Tracker v{packageJson.version}
+        </p>
+      </footer>
     </div>
   );
 }

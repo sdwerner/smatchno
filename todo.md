@@ -74,3 +74,7 @@
 - [x] Per-child feeding timeline with duration breakdown
 - [x] 29 tests passing across 3 test files
 - [x] Push to GitHub
+
+## Minor Improvements
+
+- [x] Show app version number in the analytics dashboard

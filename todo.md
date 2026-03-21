@@ -56,4 +56,21 @@
 - [x] Telegram Mini App launch button in bot
 - [x] Telegram initData validation for auth (TelegramContext)
 - [x] Tests for bot command handlers (12 tests, all passing)
-- [ ] Push updated code to GitHub
+- [x] Push updated code to GitHub
+
+## Telegram-First Rebuild
+
+- [x] /log command: structured parser for child, side (left/right/bottle), time range
+- [x] Language auto-detection (DE/EN/UK) per user/message
+- [x] Confirmation message after each /log entry
+- [x] /today command: today's summary per child
+- [x] /week command: 7-day stats per child
+- [x] /summary command: specific date summary with inline Analytics button
+- [x] /help command: updated for new command set (EN/DE/UK)
+- [x] Refined 3h feeding reminder with multilingual formatting
+- [x] Inline "📊 Analytics Dashboard" button in bot messages → opens web dashboard
+- [x] Rebuilt web app as analytics-only dashboard (no login required)
+- [x] Charts: bar chart for feedings, line chart for diapers (7-day)
+- [x] Per-child feeding timeline with duration breakdown
+- [x] 29 tests passing across 3 test files
+- [x] Push to GitHub

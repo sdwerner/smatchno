@@ -168,6 +168,34 @@ const telegramRouter = router({
     }),
 });
 
+// ─── Analytics Router (public, for the dashboard) ───────────────────────────
+
+const analyticsRouter = router({
+  dailyStats: publicProcedure
+    .input(z.object({ dayStartMs: z.number(), dayEndMs: z.number() }))
+    .query(async ({ input }) => {
+      const [nicaFeeds, niciFeeds, nicaDiapers, niciDiapers] = await Promise.all([
+        getFeedingSessionsForDay("nica", input.dayStartMs, input.dayEndMs),
+        getFeedingSessionsForDay("nici", input.dayStartMs, input.dayEndMs),
+        getDiaperChangesForDay("nica", input.dayStartMs, input.dayEndMs),
+        getDiaperChangesForDay("nici", input.dayStartMs, input.dayEndMs),
+      ]);
+      return { nicaFeeds, niciFeeds, nicaDiapers, niciDiapers };
+    }),
+
+  weeklyStats: publicProcedure
+    .input(z.object({ weekStartMs: z.number(), weekEndMs: z.number() }))
+    .query(async ({ input }) => {
+      const [nicaFeeds, niciFeeds, nicaDiapers, niciDiapers] = await Promise.all([
+        getFeedingSessionsForDay("nica", input.weekStartMs, input.weekEndMs),
+        getFeedingSessionsForDay("nici", input.weekStartMs, input.weekEndMs),
+        getDiaperChangesForDay("nica", input.weekStartMs, input.weekEndMs),
+        getDiaperChangesForDay("nici", input.weekStartMs, input.weekEndMs),
+      ]);
+      return { nicaFeeds, niciFeeds, nicaDiapers, niciDiapers };
+    }),
+});
+
 // ─── Digest helper (also used by scheduler) ──────────────────────────────────
 
 export async function sendTelegramDigest(dateMs: number) {
@@ -263,6 +291,7 @@ export const appRouter = router({
   feeding: feedingRouter,
   diaper: diaperRouter,
   telegram: telegramRouter,
+  analytics: analyticsRouter,
 });
 
 export type AppRouter = typeof appRouter;

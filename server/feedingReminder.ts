@@ -56,20 +56,18 @@ async function checkFeedings() {
       const lastTimeStr = format(new Date(lastFeed.createdAt), "HH:mm");
       const elapsedStr = formatMs(elapsed);
 
-      await sendMessage(
-        chatId,
-        `⏰ <b>Feeding reminder!</b>\n\n👧 <b>${childLabel}</b> was last fed at <b>${lastTimeStr}</b> — that's <b>${elapsedStr} ago</b>.\n\nTime for the next feeding? 🤱`,
-        {
-          reply_markup: {
-            inline_keyboard: [[
-              {
-                text: "📱 Log Feeding",
-                web_app: { url: process.env.VITE_APP_URL || "https://babytrackr-gszrhnzr.manus.space" }
-              }
-            ]]
-          }
-        }
-      );
+      const childIcon = child === "nica" ? "👧" : "👶";
+      const msg = [
+        `⏰ ${childIcon} <b>${childLabel}</b> — feeding reminder!`,
+        ``,
+        `🇬🇧 Last fed at <b>${lastTimeStr}</b> — <b>${elapsedStr} ago</b>`,
+        `🇩🇪 Letzte Mahlzeit um <b>${lastTimeStr}</b> — vor <b>${elapsedStr}</b>`,
+        `🇺🇦 Останнє годування о <b>${lastTimeStr}</b> — <b>${elapsedStr} тому</b>`,
+        ``,
+        `<code>/log ${child} left HH:MM-HH:MM</code>`,
+      ].join("\n");
+
+      await sendMessage(chatId, msg);
 
       console.log(`[FeedingReminder] Sent reminder for ${child} (${elapsedStr} since last feed)`);
     } catch (err) {

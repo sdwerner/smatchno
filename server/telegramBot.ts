@@ -4,8 +4,13 @@ import { feedingSessions, diaperChanges } from "../drizzle/schema";
 import { and, gte, lte, desc, eq } from "drizzle-orm";
 import { format, startOfDay, endOfDay, subDays } from "date-fns";
 
-const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN!;
-const API = `https://api.telegram.org/bot${BOT_TOKEN}`;
+// Read token lazily so env vars are available after server startup
+function getBotToken(): string {
+  return process.env.TELEGRAM_BOT_TOKEN || "";
+}
+function getApiBase(): string {
+  return `https://api.telegram.org/bot${getBotToken()}`;
+}
 const APP_URL = process.env.VITE_APP_URL || "https://babytrackr-gszrhnzr.manus.space";
 
 // ─── Language detection ──────────────────────────────────────────────────────
@@ -73,7 +78,7 @@ export async function sendMessage(
   extra?: Record<string, unknown>
 ) {
   try {
-    await axios.post(`${API}/sendMessage`, {
+    await axios.post(`${getApiBase()}/sendMessage`, {
       chat_id: chatId,
       text,
       parse_mode: "HTML",
@@ -86,13 +91,13 @@ export async function sendMessage(
 }
 
 export async function setWebhook(webhookUrl: string) {
-  const res = await axios.post(`${API}/setWebhook`, { url: webhookUrl });
+  const res = await axios.post(`${getApiBase()}/setWebhook`, { url: webhookUrl });
   console.log("[TelegramBot] Webhook set:", res.data);
   return res.data;
 }
 
 export async function deleteWebhook() {
-  const res = await axios.post(`${API}/deleteWebhook`);
+  const res = await axios.post(`${getApiBase()}/deleteWebhook`);
   return res.data;
 }
 

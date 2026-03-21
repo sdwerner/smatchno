@@ -105,7 +105,8 @@ function analyticsButton(lang: Lang) {
   return {
     reply_markup: {
       inline_keyboard: [[
-        { text: t("analyticsBtn", lang), web_app: { url: APP_URL } }
+        // Use url type (not web_app) so it works in regular groups as well as supergroups
+        { text: t("analyticsBtn", lang), url: APP_URL }
       ]]
     }
   };

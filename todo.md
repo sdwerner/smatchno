@@ -78,3 +78,7 @@
 ## Minor Improvements
 
 - [x] Show app version number in the analytics dashboard
+
+## Bug Fixes
+
+- [x] Fix BUTTON_TYPE_INVALID: web_app button not allowed in regular groups — replaced with plain URL button

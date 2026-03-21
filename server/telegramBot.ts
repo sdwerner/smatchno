@@ -4,9 +4,13 @@ import { feedingSessions, diaperChanges } from "../drizzle/schema";
 import { and, gte, lte, desc, eq } from "drizzle-orm";
 import { format, startOfDay, endOfDay, subDays } from "date-fns";
 
-const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN!;
-const CHAT_ID = process.env.TELEGRAM_CHAT_ID!;
-const API = `https://api.telegram.org/bot${BOT_TOKEN}`;
+function getBotApi(): string {
+  const token = process.env.TELEGRAM_BOT_TOKEN;
+  if (!token) {
+    console.warn("[TelegramBot] TELEGRAM_BOT_TOKEN is not set");
+  }
+  return `https://api.telegram.org/bot${token}`;
+}
 const APP_URL = process.env.VITE_APP_URL || "https://babytrackr-gszrhnzr.manus.space";
 
 // ─── Telegram API helpers ────────────────────────────────────────────────────
@@ -17,7 +21,8 @@ export async function sendMessage(
   extra?: Record<string, unknown>
 ) {
   try {
-    await axios.post(`${API}/sendMessage`, {
+    const api = getBotApi();
+    await axios.post(`${api}/sendMessage`, {
       chat_id: chatId,
       text,
       parse_mode: "HTML",
@@ -30,13 +35,15 @@ export async function sendMessage(
 }
 
 export async function setWebhook(webhookUrl: string) {
-  const res = await axios.post(`${API}/setWebhook`, { url: webhookUrl });
+  const api = getBotApi();
+  const res = await axios.post(`${api}/setWebhook`, { url: webhookUrl });
   console.log("[TelegramBot] Webhook set:", res.data);
   return res.data;
 }
 
 export async function deleteWebhook() {
-  const res = await axios.post(`${API}/deleteWebhook`);
+  const api = getBotApi();
+  const res = await axios.post(`${api}/deleteWebhook`);
   return res.data;
 }
 
@@ -188,7 +195,7 @@ async function handleFeed(args: string[], chatId: number) {
     rightEnd,
     bottleMl: null,
     notes: "via bot",
-    loggedBy: 0,
+    loggedBy: null,
     createdAt,
   });
 
@@ -222,7 +229,7 @@ async function handleBottle(args: string[], chatId: number) {
     rightEnd: null,
     bottleMl: ml,
     notes: "via bot",
-    loggedBy: 0,
+    loggedBy: null,
     createdAt,
   });
 
@@ -254,7 +261,7 @@ async function handleDiaper(args: string[], chatId: number) {
     child,
     type,
     notes: "via bot",
-    loggedBy: 0,
+    loggedBy: null,
     changedAt: now,
     createdAt: now,
   });
@@ -366,17 +373,23 @@ export async function handleWebhookUpdate(update: TelegramUpdate) {
 
   console.log(`[TelegramBot] Command: /${cmd} args:`, args);
 
-  switch (cmd) {
-    case "feed":   return handleFeed(args, chatId);
-    case "bottle": return handleBottle(args, chatId);
-    case "diaper": return handleDiaper(args, chatId);
-    case "today":  return handleToday(chatId);
-    case "summary":return handleSummary(args, chatId);
-    case "last":   return handleLast(chatId);
-    case "help":
-    case "start":  return handleHelp(chatId);
-    default:
-      return sendMessage(chatId, `❓ Unknown command. Send /help to see all commands.`);
+  try {
+    switch (cmd) {
+      case "feed":   return await handleFeed(args, chatId);
+      case "bottle": return await handleBottle(args, chatId);
+      case "diaper": return await handleDiaper(args, chatId);
+      case "today":  return await handleToday(chatId);
+      case "summary":return await handleSummary(args, chatId);
+      case "last":   return await handleLast(chatId);
+      case "help":
+      case "start":  return await handleHelp(chatId);
+      default:
+        return await sendMessage(chatId, `❓ Unknown command. Send /help to see all commands.`);
+    }
+  } catch (err: unknown) {
+    const errMsg = err instanceof Error ? err.message : String(err);
+    console.error(`[TelegramBot] Error handling /${cmd}:`, errMsg);
+    await sendMessage(chatId, `⚠️ Something went wrong processing your command. Please try again.`);
   }
 }
 

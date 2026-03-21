@@ -174,3 +174,70 @@ describe("buildDailySummary", () => {
     expect(result).toContain("Database not available");
   });
 });
+
+describe("Telegram bot — /log new features (no db)", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("/log both right — both babies — returns db unavailable", async () => {
+    await handleWebhookUpdate(makeUpdate("/log both right 14:00-15:00"));
+    const body = mockedAxios.mock.calls[0][1] as { text: string };
+    expect(body.text).toContain("Database not available");
+  });
+
+  it("/log nica both — both breasts — returns db unavailable", async () => {
+    await handleWebhookUpdate(makeUpdate("/log nica both 14:00-15:00"));
+    const body = mockedAxios.mock.calls[0][1] as { text: string };
+    expect(body.text).toContain("Database not available");
+  });
+
+  it("/log both both — both babies both breasts — returns db unavailable", async () => {
+    await handleWebhookUpdate(makeUpdate("/log both both 14:00-15:00"));
+    const body = mockedAxios.mock.calls[0][1] as { text: string };
+    expect(body.text).toContain("Database not available");
+  });
+
+  it("/log nica own 80 — own milk bottle — returns db unavailable", async () => {
+    await handleWebhookUpdate(makeUpdate("/log nica own 80"));
+    const body = mockedAxios.mock.calls[0][1] as { text: string };
+    expect(body.text).toContain("Database not available");
+  });
+
+  it("/log nica other 80 — formula bottle — returns db unavailable", async () => {
+    await handleWebhookUpdate(makeUpdate("/log nica other 80"));
+    const body = mockedAxios.mock.calls[0][1] as { text: string };
+    expect(body.text).toContain("Database not available");
+  });
+
+  it("/log nici right 14:00-15:00 own 15ml — combined — returns db unavailable", async () => {
+    await handleWebhookUpdate(makeUpdate("/log nici right 14:00-15:00 own 15ml"));
+    const body = mockedAxios.mock.calls[0][1] as { text: string };
+    expect(body.text).toContain("Database not available");
+  });
+
+  it("/log nica own 80 in German (eigen) — returns German db error", async () => {
+    await handleWebhookUpdate(makeUpdate("/log nica eigen 80", "de"));
+    const body = mockedAxios.mock.calls[0][1] as { text: string };
+    expect(body.text).toContain("Datenbank");
+  });
+
+  it("shows usage for /log with only child name", async () => {
+    await handleWebhookUpdate(makeUpdate("/log nica"));
+    const body = mockedAxios.mock.calls[0][1] as { text: string };
+    expect(body.text).toContain("Usage");
+  });
+
+  it("'both' as child resolves correctly (not unknown child)", async () => {
+    await handleWebhookUpdate(makeUpdate("/log both right 14:00-15:00"));
+    const body = mockedAxios.mock.calls[0][1] as { text: string };
+    // Should NOT say unknown child
+    expect(body.text).not.toContain("Unknown child");
+  });
+
+  it("/help shows new both-breast and own/other syntax", async () => {
+    await handleWebhookUpdate(makeUpdate("/help", "en"));
+    const body = mockedAxios.mock.calls[0][1] as { text: string };
+    expect(body.text).toContain("both breasts");
+    expect(body.text).toContain("own milk");
+    expect(body.text).toContain("formula");
+  });
+});

@@ -306,18 +306,28 @@ async function buildWeeklySummary(lang: Lang): Promise<string> {
 // Formats:
 //   /log nica left 14:00-14:10 right 14:10-14:20
 //   /log nici right 15:00-15:12
-//   /log nica bottle 80
+//   /log nica both 14:00-15:00          → both breasts, time split 50/50
+//   /log both right 14:00-15:00         → both babies, right breast
+//   /log both both 14:00-15:00          → both babies, both breasts, split 50/50
+//   /log nica bottle 80                 → generic bottle
+//   /log nica own 80                    → own milk bottle
+//   /log nica other 80                  → other/formula milk bottle
+//   /log nici right 14:00-15:00 own 15ml → breast + own bottle in one entry
 //   /log nici diaper wet
-//   /log nica left 14:00-14:10 right 14:10-14:20 bottle 60
-// Side keywords (multilingual):
-//   left / links / ліво / лівий
-//   right / rechts / право / правий
-//   bottle / flasche / пляшечка
-//   diaper / windel / підгузок
+// Child keywords: nica / nici / both (= both babies)
+// Side keywords: left/links/ліво/l/li · right/rechts/право/r/re · both (= both breasts)
+// Bottle keywords: bottle/flasche/b · own/eigen/expressed · other/andere/formula
+// Diaper keywords: diaper/windel/підгузок/d/w
 
-const SIDE_LEFT = new Set(["left", "links", "ліво", "лівий", "l"]);
-const SIDE_RIGHT = new Set(["right", "rechts", "право", "правий", "r"]);
-const SIDE_BOTTLE = new Set(["bottle", "flasche", "пляшечка", "flasche", "b", "fl"]);
+const SIDE_LEFT = new Set(["left", "links", "ліво", "лівий", "l", "li", "le"]);
+const SIDE_RIGHT = new Set(["right", "rechts", "право", "правий", "r", "re", "ri"]);
+const SIDE_BOTH_BREAST = new Set(["both", "beide", "обидві", "обидва"]);
+// Generic bottle (no milk type specified)
+const SIDE_BOTTLE = new Set(["bottle", "flasche", "пляшечка", "b", "fl"]);
+// Own milk bottle (expressed/pumped)
+const SIDE_OWN = new Set(["own", "eigen", "eigene", "своє", "своя", "expressed", "pumped", "abgepumpt"]);
+// Other/formula milk bottle
+const SIDE_OTHER = new Set(["other", "andere", "anderes", "інше", "formula", "formule", "pre", "fremde"]);
 const SIDE_DIAPER = new Set(["diaper", "windel", "підгузок", "d", "w"]);
 
 const DIAPER_TYPE_MAP: Record<string, "wet" | "dirty" | "both"> = {
@@ -326,18 +336,37 @@ const DIAPER_TYPE_MAP: Record<string, "wet" | "dirty" | "both"> = {
   both: "both", beides: "both", обидва: "both",
 };
 
+// Resolve child arg: returns array of children to log for
+function resolveChildren(raw: string): Array<"nica" | "nici"> | null {
+  const lower = raw.toLowerCase();
+  if (lower === "nica") return ["nica"];
+  if (lower === "nici") return ["nici"];
+  if (lower === "both" || lower === "beide" || lower === "обидві") return ["nica", "nici"];
+  return null;
+}
+
+// Parse a time range and optionally split it 50/50 for both-breast mode
+function parseTimeRange(rangeStr: string, now: Date): { start: number; end: number } | null {
+  const match = rangeStr.match(/^(\d{1,2}:\d{2})-(\d{1,2}:\d{2})$/);
+  if (!match) return null;
+  const s = parseTime(match[1]);
+  const e = parseTime(match[2]);
+  if (!s || !e) return null;
+  return { start: timeToMs(s.h, s.m, now), end: timeToMs(e.h, e.m, now) };
+}
+
 async function handleLog(args: string[], chatId: number, lang: Lang) {
   if (args.length < 2) {
     const usage: Record<Lang, string> = {
-      en: `📝 <b>Usage:</b>\n<code>/log nica left 14:00-14:10 right 14:10-14:20</code>\n<code>/log nici right 15:00-15:12</code>\n<code>/log nica bottle 80</code>\n<code>/log nici diaper wet</code>`,
-      de: `📝 <b>Verwendung:</b>\n<code>/log nica links 14:00-14:10 rechts 14:10-14:20</code>\n<code>/log nici rechts 15:00-15:12</code>\n<code>/log nica flasche 80</code>\n<code>/log nici windel nass</code>`,
-      uk: `📝 <b>Використання:</b>\n<code>/log nica ліво 14:00-14:10 право 14:10-14:20</code>\n<code>/log nici право 15:00-15:12</code>\n<code>/log nica пляшечка 80</code>\n<code>/log nici підгузок мокра</code>`,
+      en: `📝 <b>Usage:</b>\n<code>/log nica left 14:00-14:10 right 14:10-14:20</code>\n<code>/log nici both 14:00-15:00</code> (both breasts, split 50/50)\n<code>/log both right 14:00-15:00</code> (both babies)\n<code>/log nica own 80</code> (own milk) · <code>/log nica other 80</code> (formula)\n<code>/log nici right 14:00-15:00 own 15</code> (breast + bottle)\n<code>/log nici diaper wet</code>`,
+      de: `📝 <b>Verwendung:</b>\n<code>/log nica links 14:00-14:10 rechts 14:10-14:20</code>\n<code>/log nici beide 14:00-15:00</code> (beide Brüste, 50/50)\n<code>/log beide rechts 14:00-15:00</code> (beide Babys)\n<code>/log nica eigen 80</code> (eigene Milch) · <code>/log nica andere 80</code> (Fremde)\n<code>/log nici windel nass</code>`,
+      uk: `📝 <b>Використання:</b>\n<code>/log nica ліво 14:00-14:10 право 14:10-14:20</code>\n<code>/log nici обидві 14:00-15:00</code> (обидві груди, 50/50)\n<code>/log обидві право 14:00-15:00</code> (обидві дитини)\n<code>/log nica своє 80</code> (своє молоко) · <code>/log nica інше 80</code> (суміш)\n<code>/log nici підгузок мокра</code>`,
     };
     return sendMessage(chatId, usage[lang]);
   }
 
-  const child = childName(args[0]);
-  if (!child) return sendMessage(chatId, t("unknownChild", lang));
+  const children = resolveChildren(args[0]);
+  if (!children) return sendMessage(chatId, t("unknownChild", lang));
 
   const db = await getDb();
   if (!db) return sendMessage(chatId, t("dbUnavailable", lang));
@@ -348,6 +377,7 @@ async function handleLog(args: string[], chatId: number, lang: Lang) {
   let rightStart: number | null = null;
   let rightEnd: number | null = null;
   let bottleMl: number | null = null;
+  let bottleType: "generic" | "own" | "other" = "generic";
   let isDiaper = false;
   let diaperType: "wet" | "dirty" | "both" | null = null;
 
@@ -359,41 +389,52 @@ async function handleLog(args: string[], chatId: number, lang: Lang) {
     if (SIDE_LEFT.has(token)) {
       const range = args[i + 1];
       if (range) {
-        const match = range.match(/^(\d{1,2}:\d{2})-(\d{1,2}:\d{2})$/);
-        if (match) {
-          const s = parseTime(match[1]);
-          const e = parseTime(match[2]);
-          if (s && e) {
-            leftStart = timeToMs(s.h, s.m, now);
-            leftEnd = timeToMs(e.h, e.m, now);
-            i += 2;
-            continue;
-          }
-        }
+        const parsed = parseTimeRange(range, now);
+        if (parsed) { leftStart = parsed.start; leftEnd = parsed.end; i += 2; continue; }
       }
     } else if (SIDE_RIGHT.has(token)) {
       const range = args[i + 1];
       if (range) {
-        const match = range.match(/^(\d{1,2}:\d{2})-(\d{1,2}:\d{2})$/);
-        if (match) {
-          const s = parseTime(match[1]);
-          const e = parseTime(match[2]);
-          if (s && e) {
-            rightStart = timeToMs(s.h, s.m, now);
-            rightEnd = timeToMs(e.h, e.m, now);
-            i += 2;
-            continue;
-          }
+        const parsed = parseTimeRange(range, now);
+        if (parsed) { rightStart = parsed.start; rightEnd = parsed.end; i += 2; continue; }
+      }
+    } else if (SIDE_BOTH_BREAST.has(token)) {
+      // Both breasts: parse total range, split 50/50
+      const range = args[i + 1];
+      if (range) {
+        const parsed = parseTimeRange(range, now);
+        if (parsed) {
+          const half = Math.floor((parsed.end - parsed.start) / 2);
+          leftStart = parsed.start;
+          leftEnd = parsed.start + half;
+          rightStart = parsed.start + half;
+          rightEnd = parsed.end;
+          i += 2;
+          continue;
         }
       }
+    } else if (SIDE_OWN.has(token)) {
+      const mlStr = (args[i + 1] || "").replace(/ml$/i, "");
+      const ml = parseInt(mlStr);
+      bottleMl = !isNaN(ml) && ml > 0 ? ml : -1;
+      bottleType = "own";
+      i += (!isNaN(ml) && ml > 0) ? 2 : 1;
+      continue;
+    } else if (SIDE_OTHER.has(token)) {
+      const mlStr = (args[i + 1] || "").replace(/ml$/i, "");
+      const ml = parseInt(mlStr);
+      bottleMl = !isNaN(ml) && ml > 0 ? ml : -1;
+      bottleType = "other";
+      i += (!isNaN(ml) && ml > 0) ? 2 : 1;
+      continue;
     } else if (SIDE_BOTTLE.has(token)) {
-      const ml = parseInt(args[i + 1] || "");
+      const mlStr = (args[i + 1] || "").replace(/ml$/i, "");
+      const ml = parseInt(mlStr);
       if (!isNaN(ml) && ml > 0) {
         bottleMl = ml;
         i += 2;
         continue;
       } else {
-        // bottle with no amount — log as "tbd"
         bottleMl = -1;
         i++;
         continue;
@@ -409,26 +450,20 @@ async function handleLog(args: string[], chatId: number, lang: Lang) {
   }
 
   const createdAt = Date.now();
-  const confirmParts: string[] = [];
-  const childDisplay = child === "nica" ? "Nica" : "Nici";
 
-  // Handle diaper
+  // Handle diaper (for each child)
   if (isDiaper) {
-    const type = diaperType || "wet"; // default to wet if not specified
-    await db.insert(diaperChanges).values({
-      child,
-      type,
-      notes: "via bot",
-      loggedBy: 0,
-      changedAt: createdAt,
-      createdAt,
-    });
+    const type = diaperType || "wet";
     const icons: Record<string, string> = { wet: "💧", dirty: "💩", both: "🔄" };
     const typeLabels: Record<Lang, Record<string, string>> = {
       en: { wet: "wet", dirty: "dirty", both: "both" },
       de: { wet: "nass", dirty: "schmutzig", both: "beides" },
       uk: { wet: "мокра", dirty: "брудна", both: "обидва" },
     };
+    for (const child of children) {
+      await db.insert(diaperChanges).values({ child, type, notes: "via bot", loggedBy: 0, changedAt: createdAt, createdAt });
+    }
+    const childDisplay = children.length > 1 ? "Nica & Nici" : (children[0] === "nica" ? "Nica" : "Nici");
     const doneLabels: Record<Lang, string> = {
       en: `✅ ${icons[type]} Diaper logged for <b>${childDisplay}</b>: <b>${typeLabels[lang][type]}</b>`,
       de: `✅ ${icons[type]} Windel für <b>${childDisplay}</b> eingetragen: <b>${typeLabels[lang][type]}</b>`,
@@ -448,24 +483,33 @@ async function handleLog(args: string[], chatId: number, lang: Lang) {
   }
 
   const actualBottleMl = bottleMl === -1 ? null : bottleMl;
-
-  await db.insert(feedingSessions).values({
-    child,
-    leftStart,
-    leftEnd,
-    rightStart,
-    rightEnd,
-    bottleMl: actualBottleMl,
-    notes: "via bot",
-    loggedBy: 0,
-    createdAt,
-  });
+  const confirmParts: string[] = [];
 
   if (leftStart && leftEnd) confirmParts.push(`👈 Left: <b>${formatMs(leftEnd - leftStart)}</b>`);
   if (rightStart && rightEnd) confirmParts.push(`👉 Right: <b>${formatMs(rightEnd - rightStart)}</b>`);
-  if (bottleMl && bottleMl > 0) confirmParts.push(`🍼 Bottle: <b>${bottleMl} ml</b>`);
+  if (bottleMl && bottleMl > 0) {
+    const bottleIcon = bottleType === "own" ? "🍼👩" : bottleType === "other" ? "🍼🥛" : "🍼";
+    const bottleLabel = bottleType === "own" ? "Own milk" : bottleType === "other" ? "Formula" : "Bottle";
+    confirmParts.push(`${bottleIcon} ${bottleLabel}: <b>${bottleMl} ml</b>`);
+  }
   if (bottleMl === -1) confirmParts.push(`🍼 Bottle: <b>tbd</b>`);
 
+  // Insert for each child
+  for (const child of children) {
+    await db.insert(feedingSessions).values({
+      child,
+      leftStart,
+      leftEnd,
+      rightStart,
+      rightEnd,
+      bottleMl: actualBottleMl,
+      notes: `via bot${bottleType !== "generic" ? ` (${bottleType})` : ""}`,
+      loggedBy: 0,
+      createdAt,
+    });
+  }
+
+  const childDisplay = children.length > 1 ? "Nica & Nici" : (children[0] === "nica" ? "Nica" : "Nici");
   const doneLabels: Record<Lang, string> = {
     en: `✅ Feeding logged for <b>${childDisplay}</b>!\n${confirmParts.join(" · ")}`,
     de: `✅ Stillen für <b>${childDisplay}</b> eingetragen!\n${confirmParts.join(" · ")}`,
@@ -548,21 +592,20 @@ async function handleHelp(chatId: number, lang: Lang) {
   const texts: Record<Lang, string> = {
     en: `🍼 <b>Baby Tracker — Commands</b>
 
-<b>Log feeding (breast):</b>
+<b>Breast feeding:</b>
 <code>/log nica left 14:00-14:10 right 14:10-14:20</code>
-<code>/log nici right 15:00-15:12</code>
+<code>/log nici both 14:00-15:00</code> — both breasts, time split 50/50
+<code>/log both right 14:00-15:00</code> — both babies at once
+<code>/log both both 14:00-15:00</code> — both babies, both breasts
 
-<b>Log bottle:</b>
-<code>/log nica bottle 80</code>
-<code>/log nici bottle tbd</code>
+<b>Bottle feeding:</b>
+<code>/log nica own 80</code> — own milk (80 ml)
+<code>/log nica other 80</code> — formula/other milk (80 ml)
+<code>/log nica bottle 80</code> — generic bottle
+<code>/log nici right 14:00-15:00 own 15</code> — breast + own milk
 
-<b>Log diaper:</b>
-<code>/log nica diaper wet</code>
-<code>/log nici diaper dirty</code>
-<code>/log nica diaper both</code>
-
-<b>Combined (breast + bottle):</b>
-<code>/log nica left 14:00-14:10 right 14:10-14:20 bottle 60</code>
+<b>Diaper:</b>
+<code>/log nica diaper wet</code> · <code>dirty</code> · <code>both</code>
 
 <b>Analytics:</b>
 <code>/today</code> — today's summary
@@ -572,21 +615,20 @@ async function handleHelp(chatId: number, lang: Lang) {
 
     de: `🍼 <b>Baby Tracker — Befehle</b>
 
-<b>Stillen eintragen:</b>
+<b>Stillen:</b>
 <code>/log nica links 14:00-14:10 rechts 14:10-14:20</code>
-<code>/log nici rechts 15:00-15:12</code>
+<code>/log nici beide 14:00-15:00</code> — beide Brüste, 50/50 geteilt
+<code>/log beide rechts 14:00-15:00</code> — beide Babys gleichzeitig
+<code>/log beide beide 14:00-15:00</code> — beide Babys, beide Brüste
 
-<b>Flasche eintragen:</b>
-<code>/log nica flasche 80</code>
-<code>/log nici flasche tbd</code>
+<b>Flasche:</b>
+<code>/log nica eigen 80</code> — eigene Milch (80 ml)
+<code>/log nica andere 80</code> — Fremdmilch/Formel (80 ml)
+<code>/log nica flasche 80</code> — allgemeine Flasche
+<code>/log nici rechts 14:00-15:00 eigen 15</code> — Stillen + eigene Milch
 
-<b>Windel eintragen:</b>
-<code>/log nica windel nass</code>
-<code>/log nici windel schmutzig</code>
-<code>/log nica windel beides</code>
-
-<b>Kombiniert (Stillen + Flasche):</b>
-<code>/log nica links 14:00-14:10 rechts 14:10-14:20 flasche 60</code>
+<b>Windel:</b>
+<code>/log nica windel nass</code> · <code>schmutzig</code> · <code>beides</code>
 
 <b>Analyse:</b>
 <code>/today</code> — heutige Übersicht
@@ -596,21 +638,20 @@ async function handleHelp(chatId: number, lang: Lang) {
 
     uk: `🍼 <b>Baby Tracker — Команди</b>
 
-<b>Записати годування (груддю):</b>
+<b>Грудне годування:</b>
 <code>/log nica ліво 14:00-14:10 право 14:10-14:20</code>
-<code>/log nici право 15:00-15:12</code>
+<code>/log nici обидві 14:00-15:00</code> — обидві груди, 50/50
+<code>/log обидві право 14:00-15:00</code> — обидві дитини
+<code>/log обидві обидві 14:00-15:00</code> — обидві дитини, обидві груди
 
-<b>Записати пляшечку:</b>
-<code>/log nica пляшечка 80</code>
-<code>/log nici пляшечка tbd</code>
+<b>Пляшечка:</b>
+<code>/log nica своє 80</code> — своє молоко (80 мл)
+<code>/log nica інше 80</code> — суміш/інше молоко (80 мл)
+<code>/log nica пляшечка 80</code> — звичайна пляшечка
+<code>/log nici право 14:00-15:00 своє 15</code> — грудь + пляшечка
 
-<b>Записати підгузок:</b>
-<code>/log nica підгузок мокра</code>
-<code>/log nici підгузок брудна</code>
-<code>/log nica підгузок обидва</code>
-
-<b>Комбіновано (груддю + пляшечка):</b>
-<code>/log nica ліво 14:00-14:10 право 14:10-14:20 пляшечка 60</code>
+<b>Підгузок:</b>
+<code>/log nica підгузок мокра</code> · <code>брудна</code> · <code>обидва</code>
 
 <b>Аналітика:</b>
 <code>/today</code> — зведення за сьогодні

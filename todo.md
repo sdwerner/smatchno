@@ -82,3 +82,17 @@
 ## Bug Fixes
 
 - [x] Fix BUTTON_TYPE_INVALID: web_app button not allowed in regular groups — replaced with plain URL button
+
+## /log Command Extensions
+
+- [x] Support `own Xml` (own milk bottle) in /log command
+- [x] Support `other Xml` (other/formula milk bottle) in /log command
+- [x] Support combined breast + bottle in one /log entry: e.g. /log nici right 14:00-15:00 own 15ml
+- [x] Case-insensitive child names (Nica/nica/NICA) — working
+- [x] Additional breast aliases: l/r, li/re, re/ri shortcuts
+- [x] Update /help text to document new bottle syntax
+- [x] Update i18n strings for own/other milk labels
+- [x] Tests for new /log bottle parsing (39 total, all passing)
+- [x] Support `both` as child name → logs same session for Nica AND Nici
+- [x] Support `both` as breast side → total time split 50/50 between left and right
+- [x] Support `/log both both 14:00-15:00` → joint session, both babies, both breasts split

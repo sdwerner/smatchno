@@ -139,6 +139,42 @@ export async function deleteFeedingSession(id: number) {
   });
 }
 
+export async function deleteLastFeedingSession(child: "nica" | "nici") {
+  return withRetry(async () => {
+    const db = await getDb();
+    if (!db) throw new Error("Database not available");
+    const rows = await db
+      .select()
+      .from(feedingSessions)
+      .where(eq(feedingSessions.child, child))
+      .orderBy(desc(feedingSessions.createdAt))
+      .limit(1);
+    if (rows.length === 0) return null;
+    await db.delete(feedingSessions).where(eq(feedingSessions.id, rows[0].id));
+    return rows[0];
+  });
+}
+
+export async function updateFeedingSession(
+  id: number,
+  data: Partial<{
+    leftStart: number | null;
+    leftEnd: number | null;
+    rightStart: number | null;
+    rightEnd: number | null;
+    bottleMl: number | null;
+    bottleType: string | null;
+    notes: string | null;
+    createdAt: number;
+  }>
+) {
+  return withRetry(async () => {
+    const db = await getDb();
+    if (!db) throw new Error("Database not available");
+    await db.update(feedingSessions).set(data).where(eq(feedingSessions.id, id));
+  });
+}
+
 // ─── Diaper Changes ───────────────────────────────────────────────────────────
 
 export async function insertDiaperChange(data: InsertDiaperChange) {
@@ -185,6 +221,33 @@ export async function deleteDiaperChange(id: number) {
     const db = await getDb();
     if (!db) throw new Error("Database not available");
     await db.delete(diaperChanges).where(eq(diaperChanges.id, id));
+  });
+}
+
+export async function deleteLastDiaperChange(child: "nica" | "nici") {
+  return withRetry(async () => {
+    const db = await getDb();
+    if (!db) throw new Error("Database not available");
+    const rows = await db
+      .select()
+      .from(diaperChanges)
+      .where(eq(diaperChanges.child, child))
+      .orderBy(desc(diaperChanges.changedAt))
+      .limit(1);
+    if (rows.length === 0) return null;
+    await db.delete(diaperChanges).where(eq(diaperChanges.id, rows[0].id));
+    return rows[0];
+  });
+}
+
+export async function updateDiaperChange(
+  id: number,
+  data: Partial<{ type: "wet" | "dirty" | "both"; changedAt: number }>
+) {
+  return withRetry(async () => {
+    const db = await getDb();
+    if (!db) throw new Error("Database not available");
+    await db.update(diaperChanges).set(data).where(eq(diaperChanges.id, id));
   });
 }
 

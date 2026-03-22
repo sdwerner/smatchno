@@ -6,8 +6,9 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
   LineChart, Line,
 } from "recharts";
-import { ChevronLeft, ChevronRight, Baby, Droplets, Clock, TrendingUp } from "lucide-react";
+import { ChevronLeft, ChevronRight, Baby, Droplets, Clock, TrendingUp, Pencil, Trash2, X, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -75,16 +76,194 @@ function StatCard({
   );
 }
 
+// ─── Edit Feeding Modal ───────────────────────────────────────────────────────
+
+function msToTimeStr(ms: number | null): string {
+  if (!ms) return "";
+  const d = new Date(ms);
+  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+}
+
+function timeStrToMs(str: string, baseMs: number): number | null {
+  const match = str.match(/^(\d{1,2}):(\d{2})$/);
+  if (!match) return null;
+  const d = new Date(baseMs);
+  d.setHours(parseInt(match[1]), parseInt(match[2]), 0, 0);
+  return d.getTime();
+}
+
+function EditFeedingModal({
+  session,
+  onClose,
+  onSaved,
+}: {
+  session: FeedingSession;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [leftStart, setLeftStart] = useState(msToTimeStr(session.leftStart));
+  const [leftEnd, setLeftEnd] = useState(msToTimeStr(session.leftEnd));
+  const [rightStart, setRightStart] = useState(msToTimeStr(session.rightStart));
+  const [rightEnd, setRightEnd] = useState(msToTimeStr(session.rightEnd));
+  const [bottleMl, setBottleMl] = useState(session.bottleMl ? String(session.bottleMl) : "");
+
+  const updateMutation = trpc.feeding.update.useMutation({
+    onSuccess: () => { toast.success("Entry updated"); onSaved(); onClose(); },
+    onError: (e) => toast.error(`Update failed: ${e.message}`),
+  });
+
+  const handleSave = () => {
+    const base = session.createdAt;
+    updateMutation.mutate({
+      id: session.id,
+      leftStart: leftStart ? timeStrToMs(leftStart, base) : null,
+      leftEnd: leftEnd ? timeStrToMs(leftEnd, base) : null,
+      rightStart: rightStart ? timeStrToMs(rightStart, base) : null,
+      rightEnd: rightEnd ? timeStrToMs(rightEnd, base) : null,
+      bottleMl: bottleMl ? parseInt(bottleMl) : null,
+    });
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 backdrop-blur-sm" onClick={onClose}>
+      <div
+        className="w-full max-w-md bg-card rounded-t-3xl p-6 space-y-4 shadow-xl"
+        onClick={e => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between">
+          <h3 className="font-bold text-lg">Edit Feeding</h3>
+          <button onClick={onClose} className="p-1 rounded-full hover:bg-muted"><X size={18} /></button>
+        </div>
+        <p className="text-xs text-muted-foreground">{format(new Date(session.createdAt), "dd.MM.yyyy")}</p>
+
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="text-xs font-medium text-muted-foreground block mb-1">👈 Left start</label>
+            <input type="time" value={leftStart} onChange={e => setLeftStart(e.target.value)}
+              className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm" />
+          </div>
+          <div>
+            <label className="text-xs font-medium text-muted-foreground block mb-1">👈 Left end</label>
+            <input type="time" value={leftEnd} onChange={e => setLeftEnd(e.target.value)}
+              className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm" />
+          </div>
+          <div>
+            <label className="text-xs font-medium text-muted-foreground block mb-1">👉 Right start</label>
+            <input type="time" value={rightStart} onChange={e => setRightStart(e.target.value)}
+              className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm" />
+          </div>
+          <div>
+            <label className="text-xs font-medium text-muted-foreground block mb-1">👉 Right end</label>
+            <input type="time" value={rightEnd} onChange={e => setRightEnd(e.target.value)}
+              className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm" />
+          </div>
+          <div className="col-span-2">
+            <label className="text-xs font-medium text-muted-foreground block mb-1">🍼 Bottle (ml)</label>
+            <input type="number" value={bottleMl} onChange={e => setBottleMl(e.target.value)}
+              placeholder="e.g. 80"
+              className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm" />
+          </div>
+        </div>
+
+        <div className="flex gap-3 pt-1">
+          <button onClick={onClose}
+            className="flex-1 rounded-xl border border-border py-2.5 text-sm font-medium hover:bg-muted transition-colors">
+            Cancel
+          </button>
+          <button onClick={handleSave} disabled={updateMutation.isPending}
+            className="flex-1 rounded-xl bg-primary text-primary-foreground py-2.5 text-sm font-medium flex items-center justify-center gap-2 hover:opacity-90 transition-opacity disabled:opacity-50">
+            <Check size={16} /> Save
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Edit Diaper Modal ────────────────────────────────────────────────────────
+
+function EditDiaperModal({
+  diaper,
+  onClose,
+  onSaved,
+}: {
+  diaper: DiaperChange;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [type, setType] = useState<"wet" | "dirty" | "both">(diaper.type as "wet" | "dirty" | "both");
+  const [timeStr, setTimeStr] = useState(msToTimeStr(diaper.changedAt));
+
+  const updateMutation = trpc.diaper.update.useMutation({
+    onSuccess: () => { toast.success("Entry updated"); onSaved(); onClose(); },
+    onError: (e) => toast.error(`Update failed: ${e.message}`),
+  });
+
+  const handleSave = () => {
+    const changedAt = timeStrToMs(timeStr, diaper.changedAt) ?? diaper.changedAt;
+    updateMutation.mutate({ id: diaper.id, type, changedAt });
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 backdrop-blur-sm" onClick={onClose}>
+      <div
+        className="w-full max-w-md bg-card rounded-t-3xl p-6 space-y-4 shadow-xl"
+        onClick={e => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between">
+          <h3 className="font-bold text-lg">Edit Diaper</h3>
+          <button onClick={onClose} className="p-1 rounded-full hover:bg-muted"><X size={18} /></button>
+        </div>
+
+        <div className="space-y-3">
+          <div>
+            <label className="text-xs font-medium text-muted-foreground block mb-2">Type</label>
+            <div className="flex gap-2">
+              {(["wet", "dirty", "both"] as const).map(t => (
+                <button key={t} onClick={() => setType(t)}
+                  className={cn(
+                    "flex-1 rounded-xl py-2.5 text-sm font-medium border transition-colors",
+                    type === t
+                      ? "bg-primary text-primary-foreground border-primary"
+                      : "border-border hover:bg-muted"
+                  )}>
+                  {t === "wet" ? "💧 Wet" : t === "dirty" ? "💩 Dirty" : "🔄 Both"}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div>
+            <label className="text-xs font-medium text-muted-foreground block mb-1">Time</label>
+            <input type="time" value={timeStr} onChange={e => setTimeStr(e.target.value)}
+              className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm" />
+          </div>
+        </div>
+
+        <div className="flex gap-3 pt-1">
+          <button onClick={onClose}
+            className="flex-1 rounded-xl border border-border py-2.5 text-sm font-medium hover:bg-muted transition-colors">
+            Cancel
+          </button>
+          <button onClick={handleSave} disabled={updateMutation.isPending}
+            className="flex-1 rounded-xl bg-primary text-primary-foreground py-2.5 text-sm font-medium flex items-center justify-center gap-2 hover:opacity-90 transition-opacity disabled:opacity-50">
+            <Check size={16} /> Save
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Child Panel ──────────────────────────────────────────────────────────────
 
 function ChildPanel({
-  name, icon, feedings, diapers, color,
+  name, icon, feedings, diapers, onRefresh,
 }: {
   name: string;
   icon: string;
   feedings: FeedingSession[];
   diapers: DiaperChange[];
-  color: string;
+  onRefresh: () => void;
 }) {
   const stats = calcFeedingStats(feedings);
   const wet = diapers.filter(d => d.type === "wet").length;
@@ -93,6 +272,31 @@ function ChildPanel({
   const lastStr = stats.lastFeedTime
     ? format(new Date(stats.lastFeedTime), "HH:mm")
     : "—";
+
+  const [editFeeding, setEditFeeding] = useState<FeedingSession | null>(null);
+  const [editDiaper, setEditDiaper] = useState<DiaperChange | null>(null);
+
+  const deleteFeedingMutation = trpc.feeding.delete.useMutation({
+    onSuccess: () => { toast.success("Feeding deleted"); onRefresh(); },
+    onError: (e) => toast.error(`Delete failed: ${e.message}`),
+  });
+
+  const deleteDiaperMutation = trpc.diaper.delete.useMutation({
+    onSuccess: () => { toast.success("Diaper entry deleted"); onRefresh(); },
+    onError: (e) => toast.error(`Delete failed: ${e.message}`),
+  });
+
+  const confirmDeleteFeeding = (id: number) => {
+    if (window.confirm("Delete this feeding entry?")) {
+      deleteFeedingMutation.mutate({ id });
+    }
+  };
+
+  const confirmDeleteDiaper = (id: number) => {
+    if (window.confirm("Delete this diaper entry?")) {
+      deleteDiaperMutation.mutate({ id });
+    }
+  };
 
   return (
     <div className="rounded-2xl border border-border bg-card p-4 space-y-3">
@@ -135,14 +339,14 @@ function ChildPanel({
       {/* Feeding timeline */}
       {feedings.length > 0 && (
         <div className="space-y-1.5">
-          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Timeline</p>
-          <div className="space-y-1 max-h-40 overflow-y-auto pr-1">
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Feedings</p>
+          <div className="space-y-1 max-h-48 overflow-y-auto pr-1">
             {[...feedings].sort((a, b) => b.createdAt - a.createdAt).map(s => (
-              <div key={s.id} className="flex items-center gap-2 text-sm bg-muted/40 rounded-lg px-3 py-1.5">
+              <div key={s.id} className="flex items-center gap-2 text-sm bg-muted/40 rounded-lg px-3 py-1.5 group">
                 <span className="text-muted-foreground font-mono text-xs w-10 shrink-0">
                   {format(new Date(s.createdAt), "HH:mm")}
                 </span>
-                <span className="flex gap-1.5 flex-wrap">
+                <span className="flex gap-1.5 flex-wrap flex-1 min-w-0">
                   {s.leftStart && s.leftEnd && (
                     <span className="text-purple-700 dark:text-purple-300">
                       👈 {formatMs(s.leftEnd - s.leftStart)}
@@ -159,10 +363,77 @@ function ChildPanel({
                     </span>
                   )}
                 </span>
+                <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                  <button
+                    onClick={() => setEditFeeding(s)}
+                    className="p-1 rounded hover:bg-primary/10 text-primary"
+                    title="Edit"
+                  >
+                    <Pencil size={13} />
+                  </button>
+                  <button
+                    onClick={() => confirmDeleteFeeding(s.id)}
+                    className="p-1 rounded hover:bg-destructive/10 text-destructive"
+                    title="Delete"
+                  >
+                    <Trash2 size={13} />
+                  </button>
+                </div>
               </div>
             ))}
           </div>
         </div>
+      )}
+
+      {/* Diaper timeline */}
+      {diapers.length > 0 && (
+        <div className="space-y-1.5">
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Diapers</p>
+          <div className="space-y-1 max-h-32 overflow-y-auto pr-1">
+            {[...diapers].sort((a, b) => b.changedAt - a.changedAt).map(d => (
+              <div key={d.id} className="flex items-center gap-2 text-sm bg-muted/40 rounded-lg px-3 py-1.5 group">
+                <span className="text-muted-foreground font-mono text-xs w-10 shrink-0">
+                  {format(new Date(d.changedAt), "HH:mm")}
+                </span>
+                <span className="flex-1">
+                  {d.type === "wet" ? "💧 Wet" : d.type === "dirty" ? "💩 Dirty" : "🔄 Both"}
+                </span>
+                <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                  <button
+                    onClick={() => setEditDiaper(d)}
+                    className="p-1 rounded hover:bg-primary/10 text-primary"
+                    title="Edit"
+                  >
+                    <Pencil size={13} />
+                  </button>
+                  <button
+                    onClick={() => confirmDeleteDiaper(d.id)}
+                    className="p-1 rounded hover:bg-destructive/10 text-destructive"
+                    title="Delete"
+                  >
+                    <Trash2 size={13} />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Edit modals */}
+      {editFeeding && (
+        <EditFeedingModal
+          session={editFeeding}
+          onClose={() => setEditFeeding(null)}
+          onSaved={onRefresh}
+        />
+      )}
+      {editDiaper && (
+        <EditDiaperModal
+          diaper={editDiaper}
+          onClose={() => setEditDiaper(null)}
+          onSaved={onRefresh}
+        />
       )}
     </div>
   );
@@ -248,6 +519,8 @@ export default function AnalyticsDashboard() {
   const weekStartMs = useMemo(() => weekStart.getTime(), [weekStart]);
   const weekEndMs = useMemo(() => endOfDay(selectedDate).getTime(), [selectedDate]);
 
+  const utils = trpc.useUtils();
+
   const { data: dayData, isLoading: dayLoading } = trpc.analytics.dailyStats.useQuery(
     { dayStartMs: dayStart, dayEndMs: dayEnd },
     { enabled: view === "day" }
@@ -259,6 +532,11 @@ export default function AnalyticsDashboard() {
   );
 
   const isLoading = view === "day" ? dayLoading : weekLoading;
+
+  const handleRefresh = () => {
+    utils.analytics.dailyStats.invalidate();
+    utils.analytics.weeklyStats.invalidate();
+  };
 
   const prevDay = () => setSelectedDate(d => subDays(d, 1));
   const nextDay = () => setSelectedDate(d => addDays(d, 1));
@@ -297,7 +575,7 @@ export default function AnalyticsDashboard() {
         </div>
       </header>
 
-      <div className="max-w-xl mx-auto px-4 py-4 space-y-4">
+      <div className="max-w-xl mx-auto px-4 py-4 space-y-4 pb-20">
         {/* Date navigator */}
         <div className="flex items-center justify-between bg-card rounded-2xl border border-border px-4 py-2.5">
           <button onClick={prevDay} className="p-1 rounded-lg hover:bg-muted transition-colors">
@@ -336,14 +614,14 @@ export default function AnalyticsDashboard() {
               icon="👧"
               feedings={dayData.nicaFeeds}
               diapers={dayData.nicaDiapers}
-              color="purple"
+              onRefresh={handleRefresh}
             />
             <ChildPanel
               name="Nici"
               icon="👶"
               feedings={dayData.niciFeeds}
               diapers={dayData.niciDiapers}
-              color="blue"
+              onRefresh={handleRefresh}
             />
           </>
         ) : view === "week" && weekData ? (

@@ -8,10 +8,12 @@ import {
   getRecentFeedingSessions,
   getFeedingSessionsForDay,
   deleteFeedingSession,
+  updateFeedingSession,
   insertDiaperChange,
   getRecentDiaperChanges,
   getDiaperChangesForDay,
   deleteDiaperChange,
+  updateDiaperChange,
   getTelegramSettings,
   upsertTelegramSettings,
 } from "./db";
@@ -67,6 +69,25 @@ const feedingRouter = router({
       await deleteFeedingSession(input.id);
       return { success: true };
     }),
+
+  update: protectedProcedure
+    .input(
+      z.object({
+        id: z.number(),
+        leftStart: z.number().nullable().optional(),
+        leftEnd: z.number().nullable().optional(),
+        rightStart: z.number().nullable().optional(),
+        rightEnd: z.number().nullable().optional(),
+        bottleMl: z.number().nullable().optional(),
+        notes: z.string().nullable().optional(),
+        createdAt: z.number().optional(),
+      })
+    )
+    .mutation(async ({ input }) => {
+      const { id, ...data } = input;
+      await updateFeedingSession(id, data);
+      return { success: true };
+    }),
 });
 
 // ─── Diaper Router ────────────────────────────────────────────────────────────
@@ -110,6 +131,20 @@ const diaperRouter = router({
     .input(z.object({ id: z.number() }))
     .mutation(async ({ input }) => {
       await deleteDiaperChange(input.id);
+      return { success: true };
+    }),
+
+  update: protectedProcedure
+    .input(
+      z.object({
+        id: z.number(),
+        type: z.enum(["wet", "dirty", "both"]).optional(),
+        changedAt: z.number().optional(),
+      })
+    )
+    .mutation(async ({ input }) => {
+      const { id, ...data } = input;
+      await updateDiaperChange(id, data);
       return { success: true };
     }),
 });

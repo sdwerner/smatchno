@@ -113,3 +113,21 @@
 - [x] Make date prefix OPTIONAL in /log (DD.MM or DD.MM.YYYY) — defaults to today if omitted
 - [x] Update /help text to show date as optional first argument (all 3 languages)
 - [x] Tests for date prefix parsing (with and without date) — 44 tests total, all passing
+
+## /delete Command
+
+- [x] Add deleteLastEntry(child) DB helper in db.ts
+- [x] Add /delete command handler in telegramBot.ts (nica / nici / both)
+- [x] Confirmation message showing what was deleted (type, time, date)
+- [x] Register /delete in bot commands via BotFather API
+- [x] Update /help text with /delete syntax
+- [x] Tests for /delete command
+
+## Dashboard Edit/Delete
+
+- [x] Add updateFeedingSession / updateDiaperChange DB helpers
+- [x] Add feeding.update and diaper.update tRPC procedures
+- [x] Add edit modal in AnalyticsDashboard for feeding entries (time, side, ml)
+- [x] Add edit modal for diaper entries (type, time)
+- [x] Add delete button with confirmation on each timeline entry
+- [x] Cache invalidation after edit/delete

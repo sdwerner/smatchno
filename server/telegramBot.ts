@@ -1,5 +1,5 @@
 import axios from "axios";
-import { getDb } from "./db";
+import { getDb, deleteLastFeedingSession, deleteLastDiaperChange } from "./db";
 import { feedingSessions, diaperChanges } from "../drizzle/schema";
 import { and, gte, lte, desc, eq } from "drizzle-orm";
 import { format, startOfDay, endOfDay, subDays } from "date-fns";
@@ -548,6 +548,78 @@ async function handleLog(args: string[], chatId: number, lang: Lang) {
   await sendMessage(chatId, doneLabels[lang]);
 }
 
+// ─── /delete command ─────────────────────────────────────────────────────────
+
+async function handleDelete(args: string[], chatId: number, lang: Lang) {
+  const childArg = args[0]?.toLowerCase();
+  const children: ("nica" | "nici")[] =
+    childArg === "both" || childArg === "beide" || childArg === "обидві"
+      ? ["nica", "nici"]
+      : childArg === "nica" ? ["nica"]
+      : childArg === "nici" ? ["nici"]
+      : [];
+
+  if (children.length === 0) {
+    const usage: Record<Lang, string> = {
+      en: "❌ Usage: <code>/delete nica</code> · <code>/delete nici</code> · <code>/delete both</code>\nDeletes the last feeding or diaper entry for the specified child.",
+      de: "❌ Nutzung: <code>/delete nica</code> · <code>/delete nici</code> · <code>/delete beide</code>\nLöscht den letzten Eintrag (Stillen oder Windel) für das angegebene Kind.",
+      uk: "❌ Використання: <code>/delete nica</code> · <code>/delete nici</code> · <code>/delete обидві</code>\nВидаляє останній запис (годування або підгузок) для вказаної дитини.",
+    };
+    return sendMessage(chatId, usage[lang]);
+  }
+
+  const results: string[] = [];
+
+  for (const child of children) {
+    const childLabel = child === "nica" ? "👧 Nica" : "👶 Nici";
+
+    // Try to delete last feeding first, then last diaper
+    const feeding = await deleteLastFeedingSession(child).catch(() => null);
+    if (feeding) {
+      const timeStr = format(new Date(feeding.createdAt), "HH:mm dd.MM.yyyy");
+      const parts: string[] = [];
+      if (feeding.leftStart && feeding.leftEnd) parts.push(`L ${formatMs(feeding.leftEnd - feeding.leftStart)}`);
+      if (feeding.rightStart && feeding.rightEnd) parts.push(`R ${formatMs(feeding.rightEnd - feeding.rightStart)}`);
+      if (feeding.bottleMl) parts.push(`🍼 ${feeding.bottleMl}ml`);
+      const detail = parts.length > 0 ? ` (${parts.join(" · ")})` : "";
+      const deletedLabels: Record<Lang, string> = {
+        en: `🗑 ${childLabel}: Feeding deleted${detail} — ${timeStr}`,
+        de: `🗑 ${childLabel}: Stilleintrag gelöscht${detail} — ${timeStr}`,
+        uk: `🗑 ${childLabel}: Запис годування видалено${detail} — ${timeStr}`,
+      };
+      results.push(deletedLabels[lang]);
+      continue;
+    }
+
+    const diaper = await deleteLastDiaperChange(child).catch(() => null);
+    if (diaper) {
+      const timeStr = format(new Date(diaper.changedAt), "HH:mm dd.MM.yyyy");
+      const typeLabels: Record<string, Record<Lang, string>> = {
+        wet:   { en: "Wet 💧",   de: "Nass 💧",       uk: "Мокрий 💧" },
+        dirty: { en: "Dirty 💩", de: "Schmutzig 💩",  uk: "Брудний 💩" },
+        both:  { en: "Both 💧💩", de: "Beides 💧💩",   uk: "Обидва 💧💩" },
+      };
+      const typeLabel = typeLabels[diaper.type]?.[lang] ?? diaper.type;
+      const deletedLabels: Record<Lang, string> = {
+        en: `🗑 ${childLabel}: Diaper deleted (${typeLabel}) — ${timeStr}`,
+        de: `🗑 ${childLabel}: Windeleintrag gelöscht (${typeLabel}) — ${timeStr}`,
+        uk: `🗑 ${childLabel}: Запис підгузка видалено (${typeLabel}) — ${timeStr}`,
+      };
+      results.push(deletedLabels[lang]);
+      continue;
+    }
+
+    const nothingLabels: Record<Lang, string> = {
+      en: `ℹ️ ${childLabel}: No entries found to delete.`,
+      de: `ℹ️ ${childLabel}: Keine Einträge zum Löschen gefunden.`,
+      uk: `ℹ️ ${childLabel}: Записів для видалення не знайдено.`,
+    };
+    results.push(nothingLabels[lang]);
+  }
+
+  await sendMessage(chatId, results.join("\n"));
+}
+
 // ─── Analytics commands ──────────────────────────────────────────────────────
 
 async function handleToday(chatId: number, lang: Lang) {
@@ -642,7 +714,10 @@ async function handleHelp(chatId: number, lang: Lang) {
 <code>/today</code> — today's summary
 <code>/week</code> — last 7 days
 <code>/summary 19.03</code> — specific date
-<code>/last</code> — last feeding per child`,
+<code>/last</code> — last feeding per child
+
+<b>Delete last entry:</b>
+<code>/delete nica</code> · <code>/delete nici</code> · <code>/delete both</code>`,
 
     de: `🍼 <b>Baby Tracker — Befehle</b>
 
@@ -666,7 +741,10 @@ async function handleHelp(chatId: number, lang: Lang) {
 <code>/today</code> — heutige Übersicht
 <code>/week</code> — letzte 7 Tage
 <code>/summary 19.03</code> — bestimmtes Datum
-<code>/last</code> — letzte Mahlzeit je Kind`,
+<code>/last</code> — letzte Mahlzeit je Kind
+
+<b>Letzten Eintrag löschen:</b>
+<code>/delete nica</code> · <code>/delete nici</code> · <code>/delete beide</code>`,
 
     uk: `🍼 <b>Baby Tracker — Команди</b>
 
@@ -690,7 +768,10 @@ async function handleHelp(chatId: number, lang: Lang) {
 <code>/today</code> — зведення за сьогодні
 <code>/week</code> — останні 7 днів
 <code>/summary 19.03</code> — конкретна дата
-<code>/last</code> — останнє годування`,
+<code>/last</code> — останнє годування
+
+<b>Видалити останній запис:</b>
+<code>/delete nica</code> · <code>/delete nici</code> · <code>/delete обидві</code>`,
   };
 
   await sendMessage(chatId, texts[lang], analyticsButton(lang));
@@ -719,6 +800,7 @@ export async function handleWebhookUpdate(update: TelegramUpdate) {
 
   switch (cmd) {
     case "log":     return handleLog(args, chatId, lang);
+    case "delete":  return handleDelete(args, chatId, lang);
     case "today":   return handleToday(chatId, lang);
     case "week":    return handleWeek(chatId, lang);
     case "summary": return handleSummary(args, chatId, lang);

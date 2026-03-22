@@ -461,7 +461,7 @@ async function handleLog(args: string[], chatId: number, lang: Lang) {
       uk: { wet: "мокра", dirty: "брудна", both: "обидва" },
     };
     for (const child of children) {
-      await db.insert(diaperChanges).values({ child, type, notes: "via bot", loggedBy: 0, changedAt: createdAt, createdAt });
+      await db.insert(diaperChanges).values({ child, type, notes: "via bot", loggedBy: null, changedAt: createdAt, createdAt });
     }
     const childDisplay = children.length > 1 ? "Nica & Nici" : (children[0] === "nica" ? "Nica" : "Nici");
     const doneLabels: Record<Lang, string> = {
@@ -504,7 +504,7 @@ async function handleLog(args: string[], chatId: number, lang: Lang) {
       rightEnd,
       bottleMl: actualBottleMl,
       notes: `via bot${bottleType !== "generic" ? ` (${bottleType})` : ""}`,
-      loggedBy: 0,
+      loggedBy: null,
       createdAt,
     });
   }

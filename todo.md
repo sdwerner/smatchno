@@ -96,3 +96,7 @@
 - [x] Support `both` as child name → logs same session for Nica AND Nici
 - [x] Support `both` as breast side → total time split 50/50 between left and right
 - [x] Support `/log both both 14:00-15:00` → joint session, both babies, both breasts split
+
+## Bug Fixes (Active)
+
+- [x] Bot /log command not saving entries to database — fixed: loggedBy was 0 (FK violation) instead of null; also fixed ECONNRESET with connection pool + withRetry

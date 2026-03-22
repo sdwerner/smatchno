@@ -241,3 +241,44 @@ describe("Telegram bot — /log new features (no db)", () => {
     expect(body.text).toContain("formula");
   });
 });
+
+describe("Telegram bot — /log date prefix", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("/log with DD.MM date prefix — reaches db (not unknown child)", async () => {
+    await handleWebhookUpdate(makeUpdate("/log 19.03 nica left 14:00-14:10"));
+    const body = mockedAxios.mock.calls[0][1] as { text: string };
+    // Should NOT say unknown child — date was correctly stripped
+    expect(body.text).not.toContain("Unknown child");
+    // Should hit DB (db unavailable since mocked)
+    expect(body.text).toContain("Database not available");
+  });
+
+  it("/log with DD.MM.YYYY date prefix — reaches db", async () => {
+    await handleWebhookUpdate(makeUpdate("/log 19.03.2026 nici right 14:00-14:15"));
+    const body = mockedAxios.mock.calls[0][1] as { text: string };
+    expect(body.text).not.toContain("Unknown child");
+    expect(body.text).toContain("Database not available");
+  });
+
+  it("/log without date prefix — still works (defaults to today)", async () => {
+    await handleWebhookUpdate(makeUpdate("/log nica left 14:00-14:10"));
+    const body = mockedAxios.mock.calls[0][1] as { text: string };
+    expect(body.text).not.toContain("Unknown child");
+    expect(body.text).toContain("Database not available");
+  });
+
+  it("/log with date prefix and both children — reaches db", async () => {
+    await handleWebhookUpdate(makeUpdate("/log 20.03 both diaper wet"));
+    const body = mockedAxios.mock.calls[0][1] as { text: string };
+    expect(body.text).not.toContain("Unknown child");
+    expect(body.text).toContain("Database not available");
+  });
+
+  it("/help shows date prefix syntax", async () => {
+    await handleWebhookUpdate(makeUpdate("/help", "en"));
+    const body = mockedAxios.mock.calls[0][1] as { text: string };
+    expect(body.text).toContain("DD.MM");
+    expect(body.text).toContain("backfill");
+  });
+});

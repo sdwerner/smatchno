@@ -304,20 +304,35 @@ async function buildWeeklySummary(lang: Lang): Promise<string> {
 
 // ─── /log command parser ─────────────────────────────────────────────────────
 // Formats:
-//   /log nica left 14:00-14:10 right 14:10-14:20
-//   /log nici right 15:00-15:12
-//   /log nica both 14:00-15:00          → both breasts, time split 50/50
-//   /log both right 14:00-15:00         → both babies, right breast
-//   /log both both 14:00-15:00          → both babies, both breasts, split 50/50
-//   /log nica bottle 80                 → generic bottle
-//   /log nica own 80                    → own milk bottle
-//   /log nica other 80                  → other/formula milk bottle
-//   /log nici right 14:00-15:00 own 15ml → breast + own bottle in one entry
+//   /log [DD.MM[.YYYY]] nica left 14:00-14:10 right 14:10-14:20
+//   /log 19.03 nici right 15:00-15:12       → backfill March 19
+//   /log nica both 14:00-15:00              → today, both breasts, split 50/50
+//   /log both right 14:00-15:00             → both babies, right breast
+//   /log both both 14:00-15:00              → both babies, both breasts, split 50/50
+//   /log nica bottle 80                     → generic bottle
+//   /log nica own 80                        → own milk bottle
+//   /log nica other 80                      → other/formula milk bottle
+//   /log nici right 14:00-15:00 own 15ml    → breast + own bottle in one entry
 //   /log nici diaper wet
+// Date prefix (optional): DD.MM or DD.MM.YYYY — defaults to today if omitted
 // Child keywords: nica / nici / both (= both babies)
 // Side keywords: left/links/ліво/l/li · right/rechts/право/r/re · both (= both breasts)
 // Bottle keywords: bottle/flasche/b · own/eigen/expressed · other/andere/formula
 // Diaper keywords: diaper/windel/підгузок/d/w
+
+// Detect and parse an optional DD.MM or DD.MM.YYYY date prefix from the first arg
+function parseDatePrefix(arg: string): Date | null {
+  const match = arg.match(/^(\d{1,2})\.(\d{1,2})(?:\.(\d{4}))?$/);
+  if (!match) return null;
+  const day = parseInt(match[1]);
+  const month = parseInt(match[2]) - 1; // JS months are 0-indexed
+  const year = match[3] ? parseInt(match[3]) : new Date().getFullYear();
+  if (day < 1 || day > 31 || month < 0 || month > 11) return null;
+  const d = new Date();
+  d.setFullYear(year, month, day);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
 
 const SIDE_LEFT = new Set(["left", "links", "ліво", "лівий", "l", "li", "le"]);
 const SIDE_RIGHT = new Set(["right", "rechts", "право", "правий", "r", "re", "ri"]);
@@ -358,20 +373,29 @@ function parseTimeRange(rangeStr: string, now: Date): { start: number; end: numb
 async function handleLog(args: string[], chatId: number, lang: Lang) {
   if (args.length < 2) {
     const usage: Record<Lang, string> = {
-      en: `📝 <b>Usage:</b>\n<code>/log nica left 14:00-14:10 right 14:10-14:20</code>\n<code>/log nici both 14:00-15:00</code> (both breasts, split 50/50)\n<code>/log both right 14:00-15:00</code> (both babies)\n<code>/log nica own 80</code> (own milk) · <code>/log nica other 80</code> (formula)\n<code>/log nici right 14:00-15:00 own 15</code> (breast + bottle)\n<code>/log nici diaper wet</code>`,
-      de: `📝 <b>Verwendung:</b>\n<code>/log nica links 14:00-14:10 rechts 14:10-14:20</code>\n<code>/log nici beide 14:00-15:00</code> (beide Brüste, 50/50)\n<code>/log beide rechts 14:00-15:00</code> (beide Babys)\n<code>/log nica eigen 80</code> (eigene Milch) · <code>/log nica andere 80</code> (Fremde)\n<code>/log nici windel nass</code>`,
-      uk: `📝 <b>Використання:</b>\n<code>/log nica ліво 14:00-14:10 право 14:10-14:20</code>\n<code>/log nici обидві 14:00-15:00</code> (обидві груди, 50/50)\n<code>/log обидві право 14:00-15:00</code> (обидві дитини)\n<code>/log nica своє 80</code> (своє молоко) · <code>/log nica інше 80</code> (суміш)\n<code>/log nici підгузок мокра</code>`,
+      en: `📝 <b>Usage:</b>\n<code>/log nica left 14:00-14:10 right 14:10-14:20</code>\n<code>/log 19.03 nici right 14:00-14:15</code> (backfill with date)\n<code>/log nici both 14:00-15:00</code> (both breasts, split 50/50)\n<code>/log both right 14:00-15:00</code> (both babies)\n<code>/log nica own 80</code> (own milk) · <code>/log nica other 80</code> (formula)\n<code>/log nici right 14:00-15:00 own 15</code> (breast + bottle)\n<code>/log nici diaper wet</code>\n\n💡 Date prefix (DD.MM or DD.MM.YYYY) is optional — defaults to today.`,
+      de: `📝 <b>Verwendung:</b>\n<code>/log nica links 14:00-14:10 rechts 14:10-14:20</code>\n<code>/log 19.03 nici rechts 14:00-14:15</code> (Datum angeben)\n<code>/log nici beide 14:00-15:00</code> (beide Brüste, 50/50)\n<code>/log beide rechts 14:00-15:00</code> (beide Babys)\n<code>/log nica eigen 80</code> (eigene Milch) · <code>/log nica andere 80</code> (Fremde)\n<code>/log nici windel nass</code>\n\n💡 Datum (TT.MM oder TT.MM.JJJJ) ist optional — Standard: heute.`,
+      uk: `📝 <b>Використання:</b>\n<code>/log nica ліво 14:00-14:10 право 14:10-14:20</code>\n<code>/log 19.03 nici право 14:00-14:15</code> (з датою)\n<code>/log nici обидві 14:00-15:00</code> (обидві груди, 50/50)\n<code>/log обидві право 14:00-15:00</code> (обидві дитини)\n<code>/log nica своє 80</code> (своє молоко) · <code>/log nica інше 80</code> (суміш)\n<code>/log nici підгузок мокра</code>\n\n💡 Дата (ДД.ММ або ДД.ММ.РРРР) необов'язкова — за замовчуванням сьогодні.`,
     };
     return sendMessage(chatId, usage[lang]);
   }
 
-  const children = resolveChildren(args[0]);
+  // Check for optional date prefix as first argument
+  let argOffset = 0;
+  let baseDate = new Date();
+  const dateParsed = parseDatePrefix(args[0]);
+  if (dateParsed) {
+    baseDate = dateParsed;
+    argOffset = 1;
+  }
+
+  const children = resolveChildren(args[argOffset]);
   if (!children) return sendMessage(chatId, t("unknownChild", lang));
 
   const db = await getDb();
   if (!db) return sendMessage(chatId, t("dbUnavailable", lang));
 
-  const now = new Date();
+  const now = baseDate;
   let leftStart: number | null = null;
   let leftEnd: number | null = null;
   let rightStart: number | null = null;
@@ -381,8 +405,8 @@ async function handleLog(args: string[], chatId: number, lang: Lang) {
   let isDiaper = false;
   let diaperType: "wet" | "dirty" | "both" | null = null;
 
-  // Parse remaining args
-  let i = 1;
+  // Parse remaining args (start after date prefix + child name)
+  let i = argOffset + 1;
   while (i < args.length) {
     const token = args[i].toLowerCase();
 
@@ -449,7 +473,13 @@ async function handleLog(args: string[], chatId: number, lang: Lang) {
     i++;
   }
 
-  const createdAt = Date.now();
+  // Use baseDate noon as the createdAt timestamp for historical entries
+  // This ensures entries appear on the correct day in analytics
+  const isHistorical = argOffset === 1; // date prefix was provided
+  const entryDate = new Date(baseDate);
+  entryDate.setHours(12, 0, 0, 0); // use noon as anchor for historical entries
+  const createdAt = isHistorical ? entryDate.getTime() : Date.now();
+  const dateLabel = isHistorical ? ` (${format(baseDate, "dd.MM.yyyy")})` : "";
 
   // Handle diaper (for each child)
   if (isDiaper) {
@@ -465,9 +495,9 @@ async function handleLog(args: string[], chatId: number, lang: Lang) {
     }
     const childDisplay = children.length > 1 ? "Nica & Nici" : (children[0] === "nica" ? "Nica" : "Nici");
     const doneLabels: Record<Lang, string> = {
-      en: `✅ ${icons[type]} Diaper logged for <b>${childDisplay}</b>: <b>${typeLabels[lang][type]}</b>`,
-      de: `✅ ${icons[type]} Windel für <b>${childDisplay}</b> eingetragen: <b>${typeLabels[lang][type]}</b>`,
-      uk: `✅ ${icons[type]} Підгузок для <b>${childDisplay}</b> записано: <b>${typeLabels[lang][type]}</b>`,
+      en: `✅ ${icons[type]} Diaper logged for <b>${childDisplay}</b>: <b>${typeLabels[lang][type]}</b>${dateLabel}`,
+      de: `✅ ${icons[type]} Windel für <b>${childDisplay}</b> eingetragen: <b>${typeLabels[lang][type]}</b>${dateLabel}`,
+      uk: `✅ ${icons[type]} Підгузок для <b>${childDisplay}</b> записанно: <b>${typeLabels[lang][type]}</b>${dateLabel}`,
     };
     return sendMessage(chatId, doneLabels[lang]);
   }
@@ -511,9 +541,9 @@ async function handleLog(args: string[], chatId: number, lang: Lang) {
 
   const childDisplay = children.length > 1 ? "Nica & Nici" : (children[0] === "nica" ? "Nica" : "Nici");
   const doneLabels: Record<Lang, string> = {
-    en: `✅ Feeding logged for <b>${childDisplay}</b>!\n${confirmParts.join(" · ")}`,
-    de: `✅ Stillen für <b>${childDisplay}</b> eingetragen!\n${confirmParts.join(" · ")}`,
-    uk: `✅ Годування для <b>${childDisplay}</b> записано!\n${confirmParts.join(" · ")}`,
+    en: `✅ Feeding logged for <b>${childDisplay}</b>${dateLabel}!\n${confirmParts.join(" · ")}`,
+    de: `✅ Stillen für <b>${childDisplay}</b>${dateLabel} eingetragen!\n${confirmParts.join(" · ")}`,
+    uk: `✅ Годування для <b>${childDisplay}</b>${dateLabel} записано!\n${confirmParts.join(" · ")}`,
   };
   await sendMessage(chatId, doneLabels[lang]);
 }
@@ -594,6 +624,7 @@ async function handleHelp(chatId: number, lang: Lang) {
 
 <b>Breast feeding:</b>
 <code>/log nica left 14:00-14:10 right 14:10-14:20</code>
+<code>/log 19.03 nici right 14:00-14:15</code> — backfill with DD.MM date
 <code>/log nici both 14:00-15:00</code> — both breasts, time split 50/50
 <code>/log both right 14:00-15:00</code> — both babies at once
 <code>/log both both 14:00-15:00</code> — both babies, both breasts
@@ -617,6 +648,7 @@ async function handleHelp(chatId: number, lang: Lang) {
 
 <b>Stillen:</b>
 <code>/log nica links 14:00-14:10 rechts 14:10-14:20</code>
+<code>/log 19.03 nici rechts 14:00-14:15</code> — Datum angeben (TT.MM)
 <code>/log nici beide 14:00-15:00</code> — beide Brüste, 50/50 geteilt
 <code>/log beide rechts 14:00-15:00</code> — beide Babys gleichzeitig
 <code>/log beide beide 14:00-15:00</code> — beide Babys, beide Brüste
@@ -640,6 +672,7 @@ async function handleHelp(chatId: number, lang: Lang) {
 
 <b>Грудне годування:</b>
 <code>/log nica ліво 14:00-14:10 право 14:10-14:20</code>
+<code>/log 19.03 nici право 14:00-14:15</code> — з датою (ДД.ММ)
 <code>/log nici обидві 14:00-15:00</code> — обидві груди, 50/50
 <code>/log обидві право 14:00-15:00</code> — обидві дитини
 <code>/log обидві обидві 14:00-15:00</code> — обидві дитини, обидві груди

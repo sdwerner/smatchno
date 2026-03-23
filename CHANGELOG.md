@@ -1,5 +1,11 @@
 # Changelog
 
+## v1.5.0
+- Added /version command: shows current version, uptime, and build date
+- Added voice message support: send a voice note to the bot and it transcribes and executes the command
+- Deployment notification: bot posts a message on every new production deploy
+- CHANGELOG.md added to track all releases
+
 ## v1.4.0
 - Fix: bottle ml parser no longer picks up hour from time range (e.g. 19:25-19:30)
 - Added /settings bot command with link to dashboard settings page

@@ -164,3 +164,16 @@
 ## Deployment Notification
 
 - [x] Post Telegram message on server startup with version + changelog (so deploys are visible in chat)
+
+## /version Command
+
+- [x] Add /version bot command: show current version, build date, uptime
+- [x] Add /version to /help in EN/DE/UK
+
+## Voice Commands
+
+- [x] Handle Telegram voice messages: download OGG audio from Telegram file API
+- [x] Transcribe via Whisper (voiceTranscription helper)
+- [x] Route transcribed text through existing command dispatcher
+- [x] Reply with transcription echo + command result (so user can see what was understood)
+- [x] Handle transcription errors gracefully (reply with error message)

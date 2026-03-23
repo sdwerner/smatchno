@@ -8,6 +8,9 @@ import { formatInTimeZone, fromZonedTime, toZonedTime } from "date-fns-tz";
 // All user-facing times are in Vienna local time (CET/CEST = UTC+1/UTC+2)
 const APP_TZ = "Europe/Vienna";
 
+// Track server start time for /version uptime display
+const SERVER_START_MS = Date.now();
+
 /** Convert a UTC timestamp to a Date object in Vienna local time for date-fns operations */
 function toVienna(ms: number): Date {
   return toZonedTime(new Date(ms), APP_TZ);
@@ -817,8 +820,9 @@ async function handleHelp(chatId: number, lang: Lang) {
 <b>Delete last entry:</b>
 <code>/delete nica</code> · <code>/delete nici</code> · <code>/delete both</code>
 
-<b>Settings:</b>
-<code>/settings</code> — show current config &amp; open settings`,
+<b>Settings &amp; Info:</b>
+<code>/settings</code> — show current config &amp; open settings
+<code>/version</code> — show version &amp; uptime`,
 
     de: `🍼 <b>Baby Tracker — Befehle</b>
 
@@ -848,8 +852,9 @@ async function handleHelp(chatId: number, lang: Lang) {
 <b>Letzten Eintrag löschen:</b>
 <code>/delete nica</code> · <code>/delete nici</code> · <code>/delete beide</code>
 
-<b>Einstellungen:</b>
-<code>/settings</code> — aktuelle Konfiguration &amp; Einstellungen öffnen`,
+<b>Einstellungen &amp; Info:</b>
+<code>/settings</code> — aktuelle Konfiguration &amp; Einstellungen öffnen
+<code>/version</code> — Version &amp; Laufzeit anzeigen`,
 
     uk: `🍼 <b>Baby Tracker — Команди</b>
 
@@ -879,11 +884,40 @@ async function handleHelp(chatId: number, lang: Lang) {
 <b>Видалити останній запис:</b>
 <code>/delete nica</code> · <code>/delete nici</code> · <code>/delete обидві</code>
 
-<b>Налаштування:</b>
-<code>/settings</code> — поточна конфігурація &amp; відкрити налаштування`,
+<b>Налаштування &amp; Інфо:</b>
+<code>/settings</code> — поточна конфігурація &amp; відкрити налаштування
+<code>/version</code> — показати версію &amp; час роботи`,
   };
 
   await sendMessage(chatId, texts[lang], analyticsButton(lang));
+}
+
+// ─── /version command ───────────────────────────────────────────────────────────────
+
+async function handleVersion(chatId: number, lang: Lang) {
+  const { readFileSync } = await import("fs");
+  const { fileURLToPath } = await import("url");
+  const { dirname, join } = await import("path");
+  const __dirname = dirname(fileURLToPath(import.meta.url));
+  let version = "unknown";
+  try {
+    const pkg = JSON.parse(readFileSync(join(__dirname, "../package.json"), "utf8")) as { version: string };
+    version = pkg.version;
+  } catch { /* ignore */ }
+
+  const uptimeMs = Date.now() - SERVER_START_MS;
+  const uptimeH = Math.floor(uptimeMs / 3_600_000);
+  const uptimeM = Math.floor((uptimeMs % 3_600_000) / 60_000);
+  const uptimeStr = uptimeH > 0 ? `${uptimeH}h ${uptimeM}m` : `${uptimeM}m`;
+  const buildDate = fmtVienna(Date.now(), "dd.MM.yyyy");
+
+  const texts: Record<Lang, string> = {
+    en: `ℹ️ <b>Baby Tracker v${version}</b>\n\n📅 Build date: <b>${buildDate}</b>\n⏱ Uptime: <b>${uptimeStr}</b>`,
+    de: `ℹ️ <b>Baby Tracker v${version}</b>\n\n📅 Build-Datum: <b>${buildDate}</b>\n⏱ Laufzeit: <b>${uptimeStr}</b>`,
+    uk: `ℹ️ <b>Baby Tracker v${version}</b>\n\n📅 Дата збірки: <b>${buildDate}</b>\n⏱ Час роботи: <b>${uptimeStr}</b>`,
+  };
+
+  await sendMessage(chatId, texts[lang]);
 }
 
 // ─── /settings command ───────────────────────────────────────────────────────────────
@@ -939,15 +973,109 @@ async function handleSettings(chatId: number, lang: Lang) {
   });
 }
 
+// ─── Voice message handler ───────────────────────────────────────────────────────────
+
+async function handleVoiceMessage(message: TelegramMessage) {
+  const chatId = message.chat.id;
+  const userLangCode = message.from?.language_code;
+  const lang = detectLang("", userLangCode);
+
+  if (!message.voice) return;
+
+  // 1. Get file path from Telegram
+  const token = getBotToken();
+  if (!token) return;
+
+  const thinkingLabels: Record<Lang, string> = {
+    en: "🎙 Transcribing voice message...",
+    de: "🎙 Sprachnachricht wird transkribiert...",
+    uk: "🎙 Транскрибую голосове повідомлення...",
+  };
+  await sendMessage(chatId, thinkingLabels[lang]);
+
+  try {
+    const fileRes = await fetch(`https://api.telegram.org/bot${token}/getFile?file_id=${message.voice.file_id}`);
+    const fileData = await fileRes.json() as { ok: boolean; result?: { file_path: string } };
+    if (!fileData.ok || !fileData.result?.file_path) {
+      return sendMessage(chatId, "❌ Could not retrieve voice file.");
+    }
+    const audioUrl = `https://api.telegram.org/file/bot${token}/${fileData.result.file_path}`;
+
+    // 2. Transcribe
+    const { transcribeAudio } = await import("./_core/voiceTranscription");
+    const result = await transcribeAudio({
+      audioUrl,
+      prompt: "Baby feeding log command. Expected format: /log nica left 09:00-09:30 or /log nici diaper wet",
+    });
+
+    if ("error" in result) {
+      const errLabels: Record<Lang, string> = {
+        en: `❌ Transcription failed: ${result.error}`,
+        de: `❌ Transkription fehlgeschlagen: ${result.error}`,
+        uk: `❌ Помилка транскрипції: ${result.error}`,
+      };
+      return sendMessage(chatId, errLabels[lang]);
+    }
+
+    const transcribedText = result.text.trim();
+    console.log(`[TelegramBot] Voice transcribed: "${transcribedText}"`);
+
+    // 3. Echo what was understood
+    const echoLabels: Record<Lang, string> = {
+      en: `🎙 Heard: <i>${transcribedText}</i>`,
+      de: `🎙 Verstanden: <i>${transcribedText}</i>`,
+      uk: `🎙 Почуто: <i>${transcribedText}</i>`,
+    };
+    await sendMessage(chatId, echoLabels[lang]);
+
+    // 4. Route through command dispatcher (treat transcription as a typed message)
+    const text = transcribedText.startsWith("/") ? transcribedText : `/${transcribedText}`;
+    const [rawCmd, ...args] = text.replace(/@\w+/, "").slice(1).split(/\s+/);
+    const cmd = rawCmd.toLowerCase();
+    const cmdLang = detectLang(args.join(" "), userLangCode);
+
+    switch (cmd) {
+      case "log":      return handleLog(args, chatId, cmdLang);
+      case "delete":   return handleDelete(args, chatId, cmdLang);
+      case "today":    return handleToday(chatId, cmdLang);
+      case "week":     return handleWeek(chatId, cmdLang);
+      case "summary":  return handleSummary(args, chatId, cmdLang);
+      case "last":     return handleLast(args, chatId, cmdLang);
+      case "settings": return handleSettings(chatId, cmdLang);
+      case "version":  return handleVersion(chatId, cmdLang);
+      case "help":
+      case "start":    return handleHelp(chatId, cmdLang);
+      default: {
+        const unknownLabels: Record<Lang, string> = {
+          en: `❓ Could not parse command from: "${transcribedText}"\nTry saying: log nica left 9 to 9:30`,
+          de: `❓ Befehl nicht erkannt: "${transcribedText}"\nBeispiel: log nica links 9 bis 9:30`,
+          uk: `❓ Не вдалося розпізнати команду: "${transcribedText}"\nСпробуйте: log nica ліво 9 до 9:30`,
+        };
+        return sendMessage(chatId, unknownLabels[lang]);
+      }
+    }
+  } catch (err) {
+    console.error("[TelegramBot] Voice handler error:", err);
+    return sendMessage(chatId, "❌ An error occurred while processing the voice message.");
+  }
+}
+
 // ─── Main webhook dispatcher ─────────────────────────────────────────────────────────
 
 export async function handleWebhookUpdate(update: TelegramUpdate) {
   const message = update.message || update.edited_message;
-  if (!message || !message.text) return;
+  if (!message) return;
 
   const chatId = message.chat.id;
-  const text = message.text.trim();
   const userLangCode = message.from?.language_code;
+
+  // Handle voice messages
+  if (message.voice) {
+    return handleVoiceMessage(message);
+  }
+
+  if (!message.text) return;
+  const text = message.text.trim();
 
   if (!text.startsWith("/")) return;
 
@@ -961,15 +1089,16 @@ export async function handleWebhookUpdate(update: TelegramUpdate) {
   console.log(`[TelegramBot] Command: /${cmd} args:`, args, `lang: ${lang}`);
 
   switch (cmd) {
-    case "log":     return handleLog(args, chatId, lang);
-    case "delete":  return handleDelete(args, chatId, lang);
-    case "today":   return handleToday(chatId, lang);
-    case "week":    return handleWeek(chatId, lang);
-    case "summary": return handleSummary(args, chatId, lang);
-    case "last":    return handleLast(args, chatId, lang);
+    case "log":      return handleLog(args, chatId, lang);
+    case "delete":   return handleDelete(args, chatId, lang);
+    case "today":    return handleToday(chatId, lang);
+    case "week":     return handleWeek(chatId, lang);
+    case "summary":  return handleSummary(args, chatId, lang);
+    case "last":     return handleLast(args, chatId, lang);
     case "settings": return handleSettings(chatId, lang);
+    case "version":  return handleVersion(chatId, lang);
     case "help":
-    case "start":   return handleHelp(chatId, lang);
+    case "start":    return handleHelp(chatId, lang);
     default:
       return sendMessage(chatId, t("unknownCommand", lang));
   }
@@ -1042,4 +1171,5 @@ interface TelegramMessage {
   chat: { id: number; type: string; title?: string };
   text?: string;
   date: number;
+  voice?: { file_id: string; file_unique_id: string; duration: number; mime_type?: string; file_size?: number };
 }

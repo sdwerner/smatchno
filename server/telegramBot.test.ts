@@ -214,6 +214,25 @@ describe("Telegram bot — /log new features (no db)", () => {
     expect(body.text).toContain("Database not available");
   });
 
+  it("/log nica own bottle 19:25-19:30 — time range hour must NOT be parsed as ml", async () => {
+    // Regression: parseInt("19:25-19:30") === 19, which was incorrectly used as bottleMl
+    await handleWebhookUpdate(makeUpdate("/log nica own bottle 19:25-19:30"));
+    const body = mockedAxios.mock.calls[0][1] as { text: string };
+    // Should NOT confirm "19 ml" — the time range is not an ml amount
+    expect(body.text).not.toMatch(/19\s*ml/i);
+    // Should reach db (not unknown child / usage error)
+    expect(body.text).not.toContain("Unknown child");
+    expect(body.text).not.toContain("Usage");
+  });
+
+  it("/log nica own 65 — explicit ml with no time range — should NOT be rejected", async () => {
+    await handleWebhookUpdate(makeUpdate("/log nica own 65"));
+    const body = mockedAxios.mock.calls[0][1] as { text: string };
+    // Should reach db (not unknown child / usage error)
+    expect(body.text).not.toContain("Unknown child");
+    expect(body.text).not.toContain("Usage");
+  });
+
   it("/log nica own 80 in German (eigen) — returns German db error", async () => {
     await handleWebhookUpdate(makeUpdate("/log nica eigen 80", "de"));
     const body = mockedAxios.mock.calls[0][1] as { text: string };

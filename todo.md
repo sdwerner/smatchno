@@ -156,3 +156,7 @@
 - [ ] Add Delete Last Entry button in dashboard (mirrors /delete command) — deferred
 - [x] Add /settings bot command: show current config + link to settings page
 - [x] Update /help to document /settings command
+
+## Bottle ml Parsing Bug
+
+- [x] Fix: /log nica own bottle 19:25-19:30 incorrectly parses 19 (hour from time range) as ml amount

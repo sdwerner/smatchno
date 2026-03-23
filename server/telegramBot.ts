@@ -474,22 +474,28 @@ async function handleLog(args: string[], chatId: number, lang: Lang) {
         }
       }
     } else if (SIDE_OWN.has(token)) {
-      const mlStr = (args[i + 1] || "").replace(/ml$/i, "");
-      const ml = parseInt(mlStr);
+      const nextToken = args[i + 1] || "";
+      const isTimeRange = /^\d{1,2}:\d{2}/.test(nextToken); // e.g. 19:25-19:30
+      const mlStr = nextToken.replace(/ml$/i, "");
+      const ml = !isTimeRange ? parseInt(mlStr) : NaN;
       bottleMl = !isNaN(ml) && ml > 0 ? ml : -1;
       bottleType = "own";
       i += (!isNaN(ml) && ml > 0) ? 2 : 1;
       continue;
     } else if (SIDE_OTHER.has(token)) {
-      const mlStr = (args[i + 1] || "").replace(/ml$/i, "");
-      const ml = parseInt(mlStr);
+      const nextToken = args[i + 1] || "";
+      const isTimeRange = /^\d{1,2}:\d{2}/.test(nextToken);
+      const mlStr = nextToken.replace(/ml$/i, "");
+      const ml = !isTimeRange ? parseInt(mlStr) : NaN;
       bottleMl = !isNaN(ml) && ml > 0 ? ml : -1;
       bottleType = "other";
       i += (!isNaN(ml) && ml > 0) ? 2 : 1;
       continue;
     } else if (SIDE_BOTTLE.has(token)) {
-      const mlStr = (args[i + 1] || "").replace(/ml$/i, "");
-      const ml = parseInt(mlStr);
+      const nextToken = args[i + 1] || "";
+      const isTimeRange = /^\d{1,2}:\d{2}/.test(nextToken);
+      const mlStr = nextToken.replace(/ml$/i, "");
+      const ml = !isTimeRange ? parseInt(mlStr) : NaN;
       if (!isNaN(ml) && ml > 0) {
         bottleMl = ml;
         i += 2;

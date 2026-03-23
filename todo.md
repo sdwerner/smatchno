@@ -177,3 +177,10 @@
 - [x] Route transcribed text through existing command dispatcher
 - [x] Reply with transcription echo + command result (so user can see what was understood)
 - [x] Handle transcription errors gracefully (reply with error message)
+
+## /version Fix + Voice Improvements
+
+- [x] Fix /version error: resolved on deployment (import.meta.url works in production)
+- [x] Voice fuzzy-match: correct common Whisper mis-transcriptions (lock→log, lok→log, diary→diaper, etc.)
+- [x] Voice confirmation: append 🎙 icon to bot replies that came from a voice message
+- [x] Natural-language shortcuts: "last"/"status" without slash → /last; "today" → /today; "help" → /help

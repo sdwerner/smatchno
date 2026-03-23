@@ -408,7 +408,7 @@ function parseTimeRange(rangeStr: string, now: Date): { start: number; end: numb
   return { start: timeToMs(s.h, s.m, now), end: timeToMs(e.h, e.m, now) };
 }
 
-async function handleLog(args: string[], chatId: number, lang: Lang) {
+async function handleLog(args: string[], chatId: number, lang: Lang, fromVoice = false) {
   if (args.length < 2) {
     const usage: Record<Lang, string> = {
       en: `📝 <b>Usage:</b>\n<code>/log nica left 14:00-14:10 right 14:10-14:20</code>\n<code>/log 19.03 nici right 14:00-14:15</code> (backfill with date)\n<code>/log nici both 14:00-15:00</code> (both breasts, split 50/50)\n<code>/log both right 14:00-15:00</code> (both babies)\n<code>/log nica own 80</code> (own milk) · <code>/log nica other 80</code> (formula)\n<code>/log nici right 14:00-15:00 own 15</code> (breast + bottle)\n<code>/log nici diaper wet</code>\n\n💡 Date prefix (DD.MM or DD.MM.YYYY) is optional — defaults to today.`,
@@ -585,17 +585,18 @@ async function handleLog(args: string[], chatId: number, lang: Lang) {
   }
 
   const childDisplay = children.length > 1 ? "Nica & Nici" : (children[0] === "nica" ? "Nica" : "Nici");
+  const voiceTag = fromVoice ? " 🎙" : "";
   const doneLabels: Record<Lang, string> = {
-    en: `✅ Feeding logged for <b>${childDisplay}</b>${dateLabel}!\n${confirmParts.join(" · ")}`,
-    de: `✅ Stillen für <b>${childDisplay}</b>${dateLabel} eingetragen!\n${confirmParts.join(" · ")}`,
-    uk: `✅ Годування для <b>${childDisplay}</b>${dateLabel} записано!\n${confirmParts.join(" · ")}`,
+    en: `✅ Feeding logged for <b>${childDisplay}</b>${dateLabel}!${voiceTag}\n${confirmParts.join(" · ")}`,
+    de: `✅ Stillen für <b>${childDisplay}</b>${dateLabel} eingetragen!${voiceTag}\n${confirmParts.join(" · ")}`,
+    uk: `✅ Годування для <b>${childDisplay}</b>${dateLabel} записано!${voiceTag}\n${confirmParts.join(" · ")}`,
   };
   await sendMessage(chatId, doneLabels[lang]);
 }
 
 // ─── /delete command ─────────────────────────────────────────────────────────
 
-async function handleDelete(args: string[], chatId: number, lang: Lang) {
+async function handleDelete(args: string[], chatId: number, lang: Lang, _fromVoice = false) {
   const childArg = args[0]?.toLowerCase();
   const children: ("nica" | "nici")[] =
     childArg === "both" || childArg === "beide" || childArg === "обидві"
@@ -973,6 +974,80 @@ async function handleSettings(chatId: number, lang: Lang) {
   });
 }
 
+// ─── Voice fuzzy-match normalization ─────────────────────────────────────────
+
+/**
+ * Normalize common Whisper mis-transcriptions for baby tracker commands.
+ * Handles EN/DE/UK variants and phonetic near-misses.
+ */
+function normalizeVoiceTranscription(raw: string): string {
+  let s = raw.trim().toLowerCase();
+
+  // Remove leading slash if present (we'll add it back)
+  const hadSlash = s.startsWith("/");
+  if (hadSlash) s = s.slice(1);
+
+  // ── Command word fixes ──────────────────────────────────────────────────────
+  // log: lock, lok, log, lug, lag, lop, loch, lok, logg, logs
+  s = s.replace(/^(lock|lok|lug|lag|lop|loch|logg|logs|loge|log)\b/, "log");
+  // delete: delet, deleat, dileet, delete
+  s = s.replace(/^(delet|deleat|dileet|deletee)\b/, "delete");
+  // today: to day, to-day
+  s = s.replace(/^(to day|to-day)\b/, "today");
+  // last: lust, las, lest
+  s = s.replace(/^(lust|las|lest)\b/, "last");
+  // week: wick, wik
+  s = s.replace(/^(wick|wik)\b/, "week");
+  // summary: sumary, summery, somary
+  s = s.replace(/^(sumary|summery|somary|sumery)\b/, "summary");
+  // version: vershion, verson
+  s = s.replace(/^(vershion|verson)\b/, "version");
+  // settings: seetings, setings
+  s = s.replace(/^(seetings|setings)\b/, "settings");
+
+  // ── Natural-language shortcuts (no slash needed) ────────────────────────────
+  // "status" / "what's the status" → last
+  if (/^(status|what'?s? the status|show status)/.test(s)) s = "last";
+  // "help" / "hilfe" / "допомога" → help
+  if (/^(help|hilfe|допомога)$/.test(s)) s = "help";
+  // bare "today" / "heute" / "сьогодні" → today
+  if (/^(today|heute|сьогодні)$/.test(s)) s = "today";
+  // bare "last" / "letzte" / "останнє" → last
+  if (/^(last|letzte|останнє|останній)$/.test(s)) s = "last";
+  // bare "week" / "woche" / "тиждень" → week
+  if (/^(week|woche|тиждень)$/.test(s)) s = "week";
+
+  // ── Argument word fixes ─────────────────────────────────────────────────────
+  // child names: nica/nici variants
+  s = s.replace(/\bnika\b/g, "nica");
+  s = s.replace(/\bnicky\b/g, "nici");
+  s = s.replace(/\bnicky\b/g, "nici");
+  // diaper: diary, diaper, nappy, windel, підгузок
+  s = s.replace(/\b(diary|diper|diapper|nappy)\b/g, "diaper");
+  // wet: whet, wett
+  s = s.replace(/\b(whet|wett)\b/g, "wet");
+  // dirty: durty, dirtee
+  s = s.replace(/\b(durty|dirtee)\b/g, "dirty");
+  // left: lef, lft
+  s = s.replace(/\b(lef|lft)\b/g, "left");
+  // right: rite, righ
+  s = s.replace(/\b(rite|righ)\b/g, "right");
+  // both: bot, bott
+  s = s.replace(/\b(bot|bott)\b/g, "both");
+  // own: oun, owne
+  s = s.replace(/\b(oun|owne)\b/g, "own");
+  // bottle: bottel, botle
+  s = s.replace(/\b(bottel|botle)\b/g, "bottle");
+  // "to" between times: "9 to 9:30" → "9-9:30" (normalize range)
+  s = s.replace(/(\d{1,2}(?::\d{2})?)\s+to\s+(\d{1,2}(?::\d{2})?)/g, "$1-$2");
+  // "bis" (DE) between times: "9 bis 9:30" → "9-9:30"
+  s = s.replace(/(\d{1,2}(?::\d{2})?)\s+bis\s+(\d{1,2}(?::\d{2})?)/g, "$1-$2");
+  // "до" (UK) between times
+  s = s.replace(/(\d{1,2}(?::\d{2})?)\s+до\s+(\d{1,2}(?::\d{2})?)/g, "$1-$2");
+
+  return `/${s}`;
+}
+
 // ─── Voice message handler ───────────────────────────────────────────────────────────
 
 async function handleVoiceMessage(message: TelegramMessage) {
@@ -1005,7 +1080,7 @@ async function handleVoiceMessage(message: TelegramMessage) {
     const { transcribeAudio } = await import("./_core/voiceTranscription");
     const result = await transcribeAudio({
       audioUrl,
-      prompt: "Baby feeding log command. Expected format: /log nica left 09:00-09:30 or /log nici diaper wet",
+      prompt: "Baby feeding log command. Expected format: log nica left 09:00-09:30 or log nici diaper wet",
     });
 
     if ("error" in result) {
@@ -1017,26 +1092,26 @@ async function handleVoiceMessage(message: TelegramMessage) {
       return sendMessage(chatId, errLabels[lang]);
     }
 
-    const transcribedText = result.text.trim();
-    console.log(`[TelegramBot] Voice transcribed: "${transcribedText}"`);
+    const rawTranscribed = result.text.trim();
+    const normalizedText = normalizeVoiceTranscription(rawTranscribed);
+    console.log(`[TelegramBot] Voice transcribed: "${rawTranscribed}" → normalized: "${normalizedText}"`);
 
-    // 3. Echo what was understood
+    // 3. Echo what was understood (show normalized form so user can verify)
     const echoLabels: Record<Lang, string> = {
-      en: `🎙 Heard: <i>${transcribedText}</i>`,
-      de: `🎙 Verstanden: <i>${transcribedText}</i>`,
-      uk: `🎙 Почуто: <i>${transcribedText}</i>`,
+      en: `🎙 Heard: <i>${rawTranscribed}</i>\n→ <code>${normalizedText}</code>`,
+      de: `🎙 Verstanden: <i>${rawTranscribed}</i>\n→ <code>${normalizedText}</code>`,
+      uk: `🎙 Почуто: <i>${rawTranscribed}</i>\n→ <code>${normalizedText}</code>`,
     };
     await sendMessage(chatId, echoLabels[lang]);
 
-    // 4. Route through command dispatcher (treat transcription as a typed message)
-    const text = transcribedText.startsWith("/") ? transcribedText : `/${transcribedText}`;
-    const [rawCmd, ...args] = text.replace(/@\w+/, "").slice(1).split(/\s+/);
+    // 4. Route through command dispatcher
+    const [rawCmd, ...args] = normalizedText.replace(/@\w+/, "").slice(1).split(/\s+/);
     const cmd = rawCmd.toLowerCase();
     const cmdLang = detectLang(args.join(" "), userLangCode);
 
     switch (cmd) {
-      case "log":      return handleLog(args, chatId, cmdLang);
-      case "delete":   return handleDelete(args, chatId, cmdLang);
+      case "log":      return handleLog(args, chatId, cmdLang, true);
+      case "delete":   return handleDelete(args, chatId, cmdLang, true);
       case "today":    return handleToday(chatId, cmdLang);
       case "week":     return handleWeek(chatId, cmdLang);
       case "summary":  return handleSummary(args, chatId, cmdLang);
@@ -1047,9 +1122,9 @@ async function handleVoiceMessage(message: TelegramMessage) {
       case "start":    return handleHelp(chatId, cmdLang);
       default: {
         const unknownLabels: Record<Lang, string> = {
-          en: `❓ Could not parse command from: "${transcribedText}"\nTry saying: log nica left 9 to 9:30`,
-          de: `❓ Befehl nicht erkannt: "${transcribedText}"\nBeispiel: log nica links 9 bis 9:30`,
-          uk: `❓ Не вдалося розпізнати команду: "${transcribedText}"\nСпробуйте: log nica ліво 9 до 9:30`,
+          en: `❓ Could not parse command from: "${rawTranscribed}"\nTry saying: log nica left 9 to 9:30`,
+          de: `❓ Befehl nicht erkannt: "${rawTranscribed}"\nBeispiel: log nica links 9 bis 9:30`,
+          uk: `❓ Не вдалося розпізнати команду: "${rawTranscribed}"\nСпробуйте: log nica ліво 9 до 9:30`,
         };
         return sendMessage(chatId, unknownLabels[lang]);
       }

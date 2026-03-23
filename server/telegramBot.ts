@@ -975,14 +975,67 @@ export async function handleWebhookUpdate(update: TelegramUpdate) {
   }
 }
 
-// ─── Types ───────────────────────────────────────────────────────────────────
+// ─── Deployment notification ─────────────────────────────────────────────────────────
+
+/**
+ * Post a release notification to the Telegram chat.
+ * Reads the version from package.json and the top changelog section from CHANGELOG.md.
+ * Call once after server startup (production only).
+ */
+export async function notifyDeployment(): Promise<void> {
+  const token = getBotToken();
+  const chatId = process.env.TELEGRAM_CHAT_ID;
+  if (!token || !chatId) return; // silently skip if not configured
+
+  try {
+    // Read version from package.json
+    const { readFileSync } = await import("fs");
+    const { fileURLToPath } = await import("url");
+    const { dirname, join } = await import("path");
+    const __dirname = dirname(fileURLToPath(import.meta.url));
+    const pkg = JSON.parse(readFileSync(join(__dirname, "../package.json"), "utf8")) as { version: string };
+    const version = pkg.version;
+
+    // Read the top section of CHANGELOG.md (up to the next ## heading)
+    let changelogSection = "";
+    try {
+      const raw = readFileSync(join(__dirname, "../CHANGELOG.md"), "utf8");
+      // Extract the first version block (lines between first ## and second ##)
+      const lines = raw.split("\n");
+      let inBlock = false;
+      const blockLines: string[] = [];
+      for (const line of lines) {
+        if (line.startsWith("## ")) {
+          if (inBlock) break; // end of first block
+          inBlock = true;
+          continue; // skip the heading itself (we already have the version)
+        }
+        if (inBlock && line.trim()) blockLines.push(line.replace(/^- /, "• "));
+      }
+      changelogSection = blockLines.slice(0, 8).join("\n"); // cap at 8 items
+    } catch {
+      // CHANGELOG.md missing — no problem
+    }
+
+    const body = [
+      `🚀 <b>Baby Tracker v${version} deployed</b>`,
+      ...(changelogSection ? ["", "<b>What's new:</b>", changelogSection] : []),
+    ].join("\n");
+
+    await sendMessage(chatId, body);
+    console.log(`[TelegramBot] Deployment notification sent (v${version})`);
+  } catch (err) {
+    console.error("[TelegramBot] Failed to send deployment notification:", err);
+  }
+}
+
+// ─── Types ─────────────────────────────────────────────────────────
 
 export interface TelegramUpdate {
   update_id: number;
   message?: TelegramMessage;
   edited_message?: TelegramMessage;
 }
-
 interface TelegramMessage {
   message_id: number;
   from?: { id: number; username?: string; first_name?: string; language_code?: string };

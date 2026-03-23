@@ -2,7 +2,7 @@ import "dotenv/config";
 import express from "express";
 import { startTelegramScheduler } from "../telegramScheduler";
 import { startFeedingReminder } from "../feedingReminder";
-import { handleWebhookUpdate, setWebhook } from "../telegramBot";
+import { handleWebhookUpdate, setWebhook, notifyDeployment } from "../telegramBot";
 import { createServer } from "http";
 import net from "net";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
@@ -92,6 +92,8 @@ async function startServer() {
     if (token && process.env.NODE_ENV === "production") {
       try {
         await setWebhook(`${appUrl}/api/telegram/webhook`);
+        // Small delay to ensure webhook is registered before sending notification
+        setTimeout(() => notifyDeployment().catch(console.error), 3000);
       } catch (err) {
         console.error("[Webhook] Failed to register:", err);
       }

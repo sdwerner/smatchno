@@ -160,3 +160,7 @@
 ## Bottle ml Parsing Bug
 
 - [x] Fix: /log nica own bottle 19:25-19:30 incorrectly parses 19 (hour from time range) as ml amount
+
+## Deployment Notification
+
+- [x] Post Telegram message on server startup with version + changelog (so deploys are visible in chat)

@@ -242,6 +242,35 @@ describe("Telegram bot — /log new features (no db)", () => {
   });
 });
 
+describe("Telegram bot — /last command", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("/last returns db unavailable (no db in test)", async () => {
+    await handleWebhookUpdate(makeUpdate("/last"));
+    const body = mockedAxios.mock.calls[0][1] as { text: string };
+    expect(body.text).toContain("Database not available");
+  });
+
+  it("/last nica returns db unavailable (child filter)", async () => {
+    await handleWebhookUpdate(makeUpdate("/last nica"));
+    const body = mockedAxios.mock.calls[0][1] as { text: string };
+    expect(body.text).toContain("Database not available");
+  });
+
+  it("/last nici returns db unavailable (child filter)", async () => {
+    await handleWebhookUpdate(makeUpdate("/last nici"));
+    const body = mockedAxios.mock.calls[0][1] as { text: string };
+    expect(body.text).toContain("Database not available");
+  });
+
+  it("/help shows /last nica|nici syntax", async () => {
+    await handleWebhookUpdate(makeUpdate("/help", "en"));
+    const body = mockedAxios.mock.calls[0][1] as { text: string };
+    expect(body.text).toContain("/last nica");
+    expect(body.text).toContain("/last nici");
+  });
+});
+
 describe("Telegram bot — /log date prefix", () => {
   beforeEach(() => vi.clearAllMocks());
 

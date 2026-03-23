@@ -131,3 +131,10 @@
 - [x] Add edit modal for diaper entries (type, time)
 - [x] Add delete button with confirmation on each timeline entry
 - [x] Cache invalidation after edit/delete
+
+## /last Command Fix
+
+- [x] Show bottle feeding details in /last output (ml, type)
+- [x] Show last diaper change in /last output (type, time, ago)
+- [x] Support optional child argument: /last nica or /last nici (defaults to both)
+- [x] Update /help text to document /last nica|nici syntax

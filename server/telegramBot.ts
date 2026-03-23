@@ -647,47 +647,103 @@ async function handleSummary(args: string[], chatId: number, lang: Lang) {
   await sendMessage(chatId, summary, analyticsButton(lang));
 }
 
-async function handleLast(chatId: number, lang: Lang) {
+async function handleLast(args: string[], chatId: number, lang: Lang) {
   const db = await getDb();
   if (!db) return sendMessage(chatId, t("dbUnavailable", lang));
 
+  // Optional child filter: /last nica or /last nici (default: both)
+  const childArg = args[0]?.toLowerCase();
+  const children: ("nica" | "nici")[] =
+    childArg === "nica" ? ["nica"]
+    : childArg === "nici" ? ["nici"]
+    : ["nica", "nici"];
+
   const headers: Record<Lang, string> = {
-    en: "🕐 <b>Last feedings</b>",
-    de: "🕐 <b>Letzte Mahlzeiten</b>",
-    uk: "🕐 <b>Останнє годування</b>",
+    en: "🕐 <b>Last status</b>",
+    de: "🕐 <b>Letzter Status</b>",
+    uk: "🕐 <b>Останній статус</b>",
   };
-  const noRecordLabels: Record<Lang, string> = {
+  const noFeedingLabels: Record<Lang, string> = {
     en: "No feedings recorded",
-    de: "Keine Einträge",
-    uk: "Немає записів",
+    de: "Keine Mahlzeiten",
+    uk: "Немає годувань",
+  };
+  const noDiaperLabels: Record<Lang, string> = {
+    en: "No diapers recorded",
+    de: "Keine Windeln",
+    uk: "Немає підгузків",
   };
   const agoLabels: Record<Lang, string> = {
     en: "ago",
     de: "vor",
     uk: "тому",
   };
+  const feedingLabel: Record<Lang, string> = {
+    en: "🤱 Last feeding",
+    de: "🤱 Letzte Mahlzeit",
+    uk: "🤱 Останнє годування",
+  };
+  const diaperLabel: Record<Lang, string> = {
+    en: "💧 Last diaper",
+    de: "💧 Letzte Windel",
+    uk: "💧 Останній підгузок",
+  };
 
   let msg = `${headers[lang]}\n\n`;
 
-  for (const child of ["nica", "nici"] as const) {
-    const rows = await db
+  for (const child of children) {
+    const childLabel = child === "nica" ? "👧 <b>Nica</b>" : "👶 <b>Nici</b>";
+    msg += `${childLabel}\n`;
+
+    // ── Last feeding ──
+    const feedRows = await db
       .select()
       .from(feedingSessions)
       .where(eq(feedingSessions.child, child))
       .orderBy(desc(feedingSessions.createdAt))
       .limit(1);
 
-    const childLabel = child === "nica" ? "👧 <b>Nica</b>" : "👶 <b>Nici</b>";
-    if (rows.length === 0) {
-      msg += `${childLabel}: ${noRecordLabels[lang]}\n`;
+    if (feedRows.length === 0) {
+      msg += `${feedingLabel[lang]}: ${noFeedingLabels[lang]}\n`;
     } else {
-      const last = rows[0];
+      const last = feedRows[0];
       const ago = Date.now() - last.createdAt;
-      msg += `${childLabel}: ${format(new Date(last.createdAt), "HH:mm")} (<b>${formatMs(ago)} ${agoLabels[lang]}</b>)\n`;
+      const timeStr = format(new Date(last.createdAt), "HH:mm");
+      const parts: string[] = [];
+      if (last.leftStart && last.leftEnd) parts.push(`👈 ${formatMs(last.leftEnd - last.leftStart)}`);
+      if (last.rightStart && last.rightEnd) parts.push(`👉 ${formatMs(last.rightEnd - last.rightStart)}`);
+      if (last.bottleMl) {
+        const notes = last.notes || "";
+        const bottleIcon = notes.includes("own") ? "🍼👩" : notes.includes("other") ? "🍼🥛" : "🍼";
+        parts.push(`${bottleIcon} ${last.bottleMl} ml`);
+      }
+      const detail = parts.length > 0 ? ` (${parts.join(" · ")})` : "";
+      msg += `${feedingLabel[lang]}: <b>${timeStr}</b>${detail} — <b>${formatMs(ago)} ${agoLabels[lang]}</b>\n`;
     }
+
+    // ── Last diaper ──
+    const diaperRows = await db
+      .select()
+      .from(diaperChanges)
+      .where(eq(diaperChanges.child, child))
+      .orderBy(desc(diaperChanges.changedAt))
+      .limit(1);
+
+    if (diaperRows.length === 0) {
+      msg += `${diaperLabel[lang]}: ${noDiaperLabels[lang]}\n`;
+    } else {
+      const lastDiaper = diaperRows[0];
+      const diaperAgo = Date.now() - lastDiaper.changedAt;
+      const diaperTimeStr = format(new Date(lastDiaper.changedAt), "HH:mm");
+      const typeIcons: Record<string, string> = { wet: "💧", dirty: "💩", both: "💧💩" };
+      const icon = typeIcons[lastDiaper.type] ?? "";
+      msg += `${diaperLabel[lang]}: <b>${diaperTimeStr}</b> ${icon} — <b>${formatMs(diaperAgo)} ${agoLabels[lang]}</b>\n`;
+    }
+
+    msg += "\n";
   }
 
-  await sendMessage(chatId, msg);
+  await sendMessage(chatId, msg.trim());
 }
 
 async function handleHelp(chatId: number, lang: Lang) {
@@ -714,7 +770,8 @@ async function handleHelp(chatId: number, lang: Lang) {
 <code>/today</code> — today's summary
 <code>/week</code> — last 7 days
 <code>/summary 19.03</code> — specific date
-<code>/last</code> — last feeding per child
+<code>/last</code> — last feeding + diaper per child
+<code>/last nica</code> · <code>/last nici</code> — filter by child
 
 <b>Delete last entry:</b>
 <code>/delete nica</code> · <code>/delete nici</code> · <code>/delete both</code>`,
@@ -741,7 +798,8 @@ async function handleHelp(chatId: number, lang: Lang) {
 <code>/today</code> — heutige Übersicht
 <code>/week</code> — letzte 7 Tage
 <code>/summary 19.03</code> — bestimmtes Datum
-<code>/last</code> — letzte Mahlzeit je Kind
+<code>/last</code> — letzte Mahlzeit + Windel je Kind
+<code>/last nica</code> · <code>/last nici</code> — nur ein Kind
 
 <b>Letzten Eintrag löschen:</b>
 <code>/delete nica</code> · <code>/delete nici</code> · <code>/delete beide</code>`,
@@ -768,7 +826,8 @@ async function handleHelp(chatId: number, lang: Lang) {
 <code>/today</code> — зведення за сьогодні
 <code>/week</code> — останні 7 днів
 <code>/summary 19.03</code> — конкретна дата
-<code>/last</code> — останнє годування
+<code>/last</code> — останнє годування + підгузок
+<code>/last nica</code> · <code>/last nici</code> — для однієї дитини
 
 <b>Видалити останній запис:</b>
 <code>/delete nica</code> · <code>/delete nici</code> · <code>/delete обидві</code>`,
@@ -804,7 +863,7 @@ export async function handleWebhookUpdate(update: TelegramUpdate) {
     case "today":   return handleToday(chatId, lang);
     case "week":    return handleWeek(chatId, lang);
     case "summary": return handleSummary(args, chatId, lang);
-    case "last":    return handleLast(chatId, lang);
+    case "last":    return handleLast(args, chatId, lang);
     case "help":
     case "start":   return handleHelp(chatId, lang);
     default:

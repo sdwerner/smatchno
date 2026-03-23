@@ -809,7 +809,10 @@ async function handleHelp(chatId: number, lang: Lang) {
 <code>/last nica</code> · <code>/last nici</code> — filter by child
 
 <b>Delete last entry:</b>
-<code>/delete nica</code> · <code>/delete nici</code> · <code>/delete both</code>`,
+<code>/delete nica</code> · <code>/delete nici</code> · <code>/delete both</code>
+
+<b>Settings:</b>
+<code>/settings</code> — show current config &amp; open settings`,
 
     de: `🍼 <b>Baby Tracker — Befehle</b>
 
@@ -837,7 +840,10 @@ async function handleHelp(chatId: number, lang: Lang) {
 <code>/last nica</code> · <code>/last nici</code> — nur ein Kind
 
 <b>Letzten Eintrag löschen:</b>
-<code>/delete nica</code> · <code>/delete nici</code> · <code>/delete beide</code>`,
+<code>/delete nica</code> · <code>/delete nici</code> · <code>/delete beide</code>
+
+<b>Einstellungen:</b>
+<code>/settings</code> — aktuelle Konfiguration &amp; Einstellungen öffnen`,
 
     uk: `🍼 <b>Baby Tracker — Команди</b>
 
@@ -865,13 +871,69 @@ async function handleHelp(chatId: number, lang: Lang) {
 <code>/last nica</code> · <code>/last nici</code> — для однієї дитини
 
 <b>Видалити останній запис:</b>
-<code>/delete nica</code> · <code>/delete nici</code> · <code>/delete обидві</code>`,
+<code>/delete nica</code> · <code>/delete nici</code> · <code>/delete обидві</code>
+
+<b>Налаштування:</b>
+<code>/settings</code> — поточна конфігурація &amp; відкрити налаштування`,
   };
 
   await sendMessage(chatId, texts[lang], analyticsButton(lang));
 }
 
-// ─── Main webhook dispatcher ─────────────────────────────────────────────────
+// ─── /settings command ───────────────────────────────────────────────────────────────
+
+async function handleSettings(chatId: number, lang: Lang) {
+  const { getTelegramSettings } = await import("./db");
+  const settings = await getTelegramSettings().catch(() => null);
+
+  const settingsUrl = `${APP_URL}/settings`;
+
+  const enabledLabel = settings?.enabled ? "✅ Enabled" : "❌ Disabled";
+  const digestLabel = settings?.digestTime ?? "21:00";
+
+  const texts: Record<Lang, string> = {
+    en: [
+      `⚙️ <b>Baby Tracker — Settings</b>`,
+      ``,
+      `📊 Daily digest: <b>${digestLabel}</b>`,
+      `🔔 Notifications: <b>${enabledLabel}</b>`,
+      ``,
+      `Open the dashboard to change all settings:`,
+    ].join("\n"),
+    de: [
+      `⚙️ <b>Baby Tracker — Einstellungen</b>`,
+      ``,
+      `📊 Tägliche Übersicht: <b>${digestLabel}</b>`,
+      `🔔 Benachrichtigungen: <b>${enabledLabel}</b>`,
+      ``,
+      `Öffne das Dashboard um alle Einstellungen zu ändern:`,
+    ].join("\n"),
+    uk: [
+      `⚙️ <b>Baby Tracker — Налаштування</b>`,
+      ``,
+      `📊 Щоденний звіт: <b>${digestLabel}</b>`,
+      `🔔 Сповіщення: <b>${enabledLabel}</b>`,
+      ``,
+      `Відкрий дашборд для зміни налаштувань:`,
+    ].join("\n"),
+  };
+
+  const settingsBtnLabel: Record<Lang, string> = {
+    en: "⚙️ Open Settings",
+    de: "⚙️ Einstellungen öffnen",
+    uk: "⚙️ Відкрити налаштування",
+  };
+
+  await sendMessage(chatId, texts[lang], {
+    reply_markup: {
+      inline_keyboard: [[
+        { text: settingsBtnLabel[lang], url: settingsUrl },
+      ]],
+    },
+  });
+}
+
+// ─── Main webhook dispatcher ─────────────────────────────────────────────────────────
 
 export async function handleWebhookUpdate(update: TelegramUpdate) {
   const message = update.message || update.edited_message;
@@ -899,6 +961,7 @@ export async function handleWebhookUpdate(update: TelegramUpdate) {
     case "week":    return handleWeek(chatId, lang);
     case "summary": return handleSummary(args, chatId, lang);
     case "last":    return handleLast(args, chatId, lang);
+    case "settings": return handleSettings(chatId, lang);
     case "help":
     case "start":   return handleHelp(chatId, lang);
     default:

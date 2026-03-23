@@ -147,3 +147,12 @@
 - [x] Fix bot: historical date prefix (DD.MM) uses Vienna midnight
 - [x] Fix dashboard: date navigation boundaries use Vienna time (browser-local = correct)
 - [x] Fix dashboard: format() display calls use Vienna time (browser-local = correct)
+
+## Dashboard Parity (bot = dashboard)
+
+- [x] Wire /settings route in App.tsx and add gear icon nav link in dashboard header
+- [x] Add Log Entry UI in dashboard: manual feeding log (child, side/bottle, time range)
+- [x] Add Log Entry UI in dashboard: manual diaper log (child, type, time)
+- [ ] Add Delete Last Entry button in dashboard (mirrors /delete command) — deferred
+- [x] Add /settings bot command: show current config + link to settings page
+- [x] Update /help to document /settings command

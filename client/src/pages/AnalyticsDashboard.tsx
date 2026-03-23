@@ -6,7 +6,8 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
   LineChart, Line,
 } from "recharts";
-import { ChevronLeft, ChevronRight, Baby, Droplets, Clock, TrendingUp, Pencil, Trash2, X, Check } from "lucide-react";
+import { ChevronLeft, ChevronRight, Baby, Droplets, Clock, TrendingUp, Pencil, Trash2, X, Check, Settings, Plus } from "lucide-react";
+import { Link } from "wouter";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
@@ -504,13 +505,192 @@ function WeeklyChart({
   );
 }
 
-// ─── Main Dashboard ───────────────────────────────────────────────────────────
+// ─── Log Entry Modal ─────────────────────────────────────────────────────────
 
 type View = "day" | "week";
+type LogTab = "feeding" | "diaper";
+type BottleType = "none" | "generic" | "own" | "other";
+
+function LogEntryModal({ onClose, onSaved }: { onClose: () => void; onSaved: () => void }) {
+  const [tab, setTab] = useState<LogTab>("feeding");
+  const [child, setChild] = useState<"nica" | "nici">("nica");
+
+  // Feeding fields
+  const [leftStart, setLeftStart] = useState("");
+  const [leftEnd, setLeftEnd] = useState("");
+  const [rightStart, setRightStart] = useState("");
+  const [rightEnd, setRightEnd] = useState("");
+  const [bottleType, setBottleType] = useState<BottleType>("none");
+  const [bottleMl, setBottleMl] = useState("");
+
+  // Diaper fields
+  const [diaperType, setDiaperType] = useState<"wet" | "dirty" | "both">("wet");
+  const [diaperTime, setDiaperTime] = useState(() => {
+    const now = new Date();
+    return `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+  });
+
+  const saveFeedingMutation = trpc.feeding.save.useMutation({
+    onSuccess: () => { toast.success("Feeding logged"); onSaved(); onClose(); },
+    onError: (e) => toast.error(`Failed: ${e.message}`),
+  });
+  const saveDiaperMutation = trpc.diaper.save.useMutation({
+    onSuccess: () => { toast.success("Diaper logged"); onSaved(); onClose(); },
+    onError: (e) => toast.error(`Failed: ${e.message}`),
+  });
+
+  function timeToMs(str: string, baseMs: number): number | null {
+    const match = str.match(/^(\d{1,2}):(\d{2})$/);
+    if (!match) return null;
+    const d = new Date(baseMs);
+    d.setHours(parseInt(match[1]), parseInt(match[2]), 0, 0);
+    return d.getTime();
+  }
+
+  const handleSaveFeeding = () => {
+    const now = Date.now();
+    const ls = leftStart ? timeToMs(leftStart, now) : null;
+    const le = leftEnd ? timeToMs(leftEnd, now) : null;
+    const rs = rightStart ? timeToMs(rightStart, now) : null;
+    const re = rightEnd ? timeToMs(rightEnd, now) : null;
+    const ml = bottleMl ? parseInt(bottleMl) : null;
+    const notes = bottleType === "own" ? "own" : bottleType === "other" ? "other" : null;
+    if (!ls && !rs && !ml) { toast.error("Enter at least one feeding detail"); return; }
+    saveFeedingMutation.mutate({
+      child,
+      leftStart: ls, leftEnd: le,
+      rightStart: rs, rightEnd: re,
+      bottleMl: ml,
+      notes: notes ?? undefined,
+      createdAt: now,
+    });
+  };
+
+  const handleSaveDiaper = () => {
+    const now = Date.now();
+    const changedAt = timeToMs(diaperTime, now) ?? now;
+    saveDiaperMutation.mutate({ child, type: diaperType, changedAt, createdAt: now });
+  };
+
+  const isPending = saveFeedingMutation.isPending || saveDiaperMutation.isPending;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 backdrop-blur-sm" onClick={onClose}>
+      <div className="w-full max-w-md bg-card rounded-t-3xl p-5 space-y-4 shadow-xl" onClick={e => e.stopPropagation()}>
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <h3 className="font-bold text-lg">Log Entry</h3>
+          <button onClick={onClose} className="p-1 rounded-full hover:bg-muted"><X size={18} /></button>
+        </div>
+
+        {/* Child selector */}
+        <div className="flex gap-2">
+          {(["nica", "nici"] as const).map(c => (
+            <button key={c} onClick={() => setChild(c)}
+              className={cn("flex-1 rounded-xl py-2 text-sm font-semibold border transition-colors",
+                child === c ? "bg-primary text-primary-foreground border-primary" : "border-border hover:bg-muted")}>
+              {c === "nica" ? "👧 Nica" : "👶 Nici"}
+            </button>
+          ))}
+        </div>
+
+        {/* Tab selector */}
+        <div className="flex rounded-lg overflow-hidden border border-border text-sm">
+          {(["feeding", "diaper"] as const).map(t => (
+            <button key={t} onClick={() => setTab(t)}
+              className={cn("flex-1 py-2 font-medium transition-colors",
+                tab === t ? "bg-primary text-primary-foreground" : "bg-card text-muted-foreground")}>
+              {t === "feeding" ? "🤱 Feeding" : "💧 Diaper"}
+            </button>
+          ))}
+        </div>
+
+        {tab === "feeding" ? (
+          <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="text-xs font-medium text-muted-foreground block mb-1">👈 Left start</label>
+                <input type="time" value={leftStart} onChange={e => setLeftStart(e.target.value)}
+                  className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm" />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-muted-foreground block mb-1">👈 Left end</label>
+                <input type="time" value={leftEnd} onChange={e => setLeftEnd(e.target.value)}
+                  className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm" />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-muted-foreground block mb-1">👉 Right start</label>
+                <input type="time" value={rightStart} onChange={e => setRightStart(e.target.value)}
+                  className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm" />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-muted-foreground block mb-1">👉 Right end</label>
+                <input type="time" value={rightEnd} onChange={e => setRightEnd(e.target.value)}
+                  className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm" />
+              </div>
+            </div>
+            <div>
+              <label className="text-xs font-medium text-muted-foreground block mb-1">🍼 Bottle</label>
+              <div className="flex gap-1.5 mb-2">
+                {(["none", "generic", "own", "other"] as const).map(bt => (
+                  <button key={bt} onClick={() => setBottleType(bt)}
+                    className={cn("flex-1 rounded-lg py-1.5 text-xs font-medium border transition-colors",
+                      bottleType === bt ? "bg-primary text-primary-foreground border-primary" : "border-border hover:bg-muted")}>
+                    {bt === "none" ? "None" : bt === "generic" ? "🍼" : bt === "own" ? "🍼👩" : "🍼🥛"}
+                  </button>
+                ))}
+              </div>
+              {bottleType !== "none" && (
+                <input type="number" value={bottleMl} onChange={e => setBottleMl(e.target.value)}
+                  placeholder="ml" className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm" />
+              )}
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            <div>
+              <label className="text-xs font-medium text-muted-foreground block mb-2">Type</label>
+              <div className="flex gap-2">
+                {(["wet", "dirty", "both"] as const).map(dt => (
+                  <button key={dt} onClick={() => setDiaperType(dt)}
+                    className={cn("flex-1 rounded-xl py-2.5 text-sm font-medium border transition-colors",
+                      diaperType === dt ? "bg-primary text-primary-foreground border-primary" : "border-border hover:bg-muted")}>
+                    {dt === "wet" ? "💧 Wet" : dt === "dirty" ? "💩 Dirty" : "🔄 Both"}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div>
+              <label className="text-xs font-medium text-muted-foreground block mb-1">Time</label>
+              <input type="time" value={diaperTime} onChange={e => setDiaperTime(e.target.value)}
+                className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm" />
+            </div>
+          </div>
+        )}
+
+        <div className="flex gap-3 pt-1">
+          <button onClick={onClose}
+            className="flex-1 rounded-xl border border-border py-2.5 text-sm font-medium hover:bg-muted transition-colors">
+            Cancel
+          </button>
+          <button
+            onClick={tab === "feeding" ? handleSaveFeeding : handleSaveDiaper}
+            disabled={isPending}
+            className="flex-1 rounded-xl bg-primary text-primary-foreground py-2.5 text-sm font-medium flex items-center justify-center gap-2 hover:opacity-90 transition-opacity disabled:opacity-50">
+            <Check size={16} /> Save
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Main Dashboard ───────────────────────────────────────────────────────────
 
 export default function AnalyticsDashboard() {
   const [view, setView] = useState<View>("day");
   const [selectedDate, setSelectedDate] = useState(() => new Date());
+  const [showLogModal, setShowLogModal] = useState(false);
 
   const dayStart = useMemo(() => startOfDay(selectedDate).getTime(), [selectedDate]);
   const dayEnd = useMemo(() => endOfDay(selectedDate).getTime(), [selectedDate]);
@@ -550,6 +730,21 @@ export default function AnalyticsDashboard() {
           <div className="flex items-center gap-2">
             <span className="text-xl">🍼</span>
             <span className="font-bold text-primary">Baby Tracker</span>
+          </div>
+          {/* Right side: Log + Settings */}
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => setShowLogModal(true)}
+              className="p-2 rounded-lg hover:bg-muted transition-colors text-primary"
+              title="Log entry"
+            >
+              <Plus size={20} />
+            </button>
+            <Link href="/settings">
+              <button className="p-2 rounded-lg hover:bg-muted transition-colors text-muted-foreground" title="Settings">
+                <Settings size={18} />
+              </button>
+            </Link>
           </div>
           {/* View toggle */}
           <div className="flex rounded-lg overflow-hidden border border-border text-sm">
@@ -668,6 +863,14 @@ export default function AnalyticsDashboard() {
           🍼 Baby Tracker v{packageJson.version}
         </p>
       </footer>
+
+      {/* Log Entry Modal */}
+      {showLogModal && (
+        <LogEntryModal
+          onClose={() => setShowLogModal(false)}
+          onSaved={handleRefresh}
+        />
+      )}
     </div>
   );
 }

@@ -3,6 +3,35 @@ import { getDb, deleteLastFeedingSession, deleteLastDiaperChange } from "./db";
 import { feedingSessions, diaperChanges } from "../drizzle/schema";
 import { and, gte, lte, desc, eq } from "drizzle-orm";
 import { format, startOfDay, endOfDay, subDays } from "date-fns";
+import { formatInTimeZone, fromZonedTime, toZonedTime } from "date-fns-tz";
+
+// All user-facing times are in Vienna local time (CET/CEST = UTC+1/UTC+2)
+const APP_TZ = "Europe/Vienna";
+
+/** Convert a UTC timestamp to a Date object in Vienna local time for date-fns operations */
+function toVienna(ms: number): Date {
+  return toZonedTime(new Date(ms), APP_TZ);
+}
+
+/** Convert a Vienna-local Date back to a UTC timestamp (ms) */
+function fromVienna(d: Date): number {
+  return fromZonedTime(d, APP_TZ).getTime();
+}
+
+/** Format a UTC timestamp using Vienna local time */
+function fmtVienna(ms: number, fmt: string): string {
+  return formatInTimeZone(new Date(ms), APP_TZ, fmt);
+}
+
+/** Vienna-aware startOfDay → UTC ms */
+function viennaDayStart(ms: number): number {
+  return fromVienna(startOfDay(toVienna(ms)));
+}
+
+/** Vienna-aware endOfDay → UTC ms */
+function viennaDayEnd(ms: number): number {
+  return fromVienna(endOfDay(toVienna(ms)));
+}
 
 // Read token lazily so env vars are available after server startup
 function getBotToken(): string {
@@ -130,9 +159,11 @@ function parseTime(str: string): { h: number; m: number } | null {
 }
 
 function timeToMs(h: number, m: number, baseDate: Date): number {
+  // baseDate is already a Vienna-zoned date (from toVienna or parseDatePrefix)
+  // We set the hours on it and convert back to UTC
   const d = new Date(baseDate);
   d.setHours(h, m, 0, 0);
-  return d.getTime();
+  return fromVienna(d);
 }
 
 function childName(raw: string): "nica" | "nici" | null {
@@ -148,9 +179,9 @@ export async function buildDailySummary(dateMs: number, lang: Lang = "en"): Prom
   const db = await getDb();
   if (!db) return t("dbUnavailable", lang);
 
-  const dayStart = startOfDay(new Date(dateMs)).getTime();
-  const dayEnd = endOfDay(new Date(dateMs)).getTime();
-  const dateLabel = format(new Date(dateMs), "dd.MM.yyyy");
+  const dayStart = viennaDayStart(dateMs);
+  const dayEnd = viennaDayEnd(dateMs);
+  const dateLabel = fmtVienna(dateMs, "dd.MM.yyyy");
 
   const headers: Record<Lang, string> = {
     en: `📊 <b>Daily Summary — ${dateLabel}</b>`,
@@ -200,7 +231,7 @@ export async function buildDailySummary(dateMs: number, lang: Lang = "en"): Prom
     const both = diapers.filter(d => d.type === "both").length;
 
     const childLabel = child === "nica" ? "👧 <b>Nica</b>" : "👶 <b>Nici</b>";
-    const lastStr = lastFeedTime ? format(new Date(lastFeedTime), "HH:mm") : "—";
+    const lastStr = lastFeedTime ? fmtVienna(lastFeedTime, "HH:mm") : "—";
 
     const feedingLabel: Record<Lang, string> = {
       en: "Feedings", de: "Stillsitzungen", uk: "Годування",
@@ -232,9 +263,9 @@ async function buildWeeklySummary(lang: Lang): Promise<string> {
   const db = await getDb();
   if (!db) return t("dbUnavailable", lang);
 
-  const now = new Date();
-  const weekStart = startOfDay(subDays(now, 6)).getTime();
-  const weekEnd = endOfDay(now).getTime();
+  const now = Date.now();
+  const weekStart = viennaDayStart(subDays(new Date(now), 6).getTime());
+  const weekEnd = viennaDayEnd(now);
 
   const headers: Record<Lang, string> = {
     en: "📈 <b>Weekly Summary (last 7 days)</b>",
@@ -321,17 +352,21 @@ async function buildWeeklySummary(lang: Lang): Promise<string> {
 // Diaper keywords: diaper/windel/підгузок/d/w
 
 // Detect and parse an optional DD.MM or DD.MM.YYYY date prefix from the first arg
+// Returns a Vienna-zoned Date (midnight Vienna time) for use with timeToMs
 function parseDatePrefix(arg: string): Date | null {
   const match = arg.match(/^(\d{1,2})\.(\d{1,2})(?:\.(\d{4}))?$/);
   if (!match) return null;
   const day = parseInt(match[1]);
   const month = parseInt(match[2]) - 1; // JS months are 0-indexed
-  const year = match[3] ? parseInt(match[3]) : new Date().getFullYear();
+  const year = match[3] ? parseInt(match[3]) : fmtVienna(Date.now(), "yyyy").length === 4
+    ? parseInt(fmtVienna(Date.now(), "yyyy"))
+    : new Date().getFullYear();
   if (day < 1 || day > 31 || month < 0 || month > 11) return null;
-  const d = new Date();
-  d.setFullYear(year, month, day);
-  d.setHours(0, 0, 0, 0);
-  return d;
+  // Build a Vienna-local date at midnight
+  const viennaToday = toVienna(Date.now());
+  viennaToday.setFullYear(year, month, day);
+  viennaToday.setHours(0, 0, 0, 0);
+  return viennaToday;
 }
 
 const SIDE_LEFT = new Set(["left", "links", "ліво", "лівий", "l", "li", "le"]);
@@ -381,11 +416,12 @@ async function handleLog(args: string[], chatId: number, lang: Lang) {
   }
 
   // Check for optional date prefix as first argument
+  // baseDate must be a Vienna-zoned Date so timeToMs interprets HH:MM correctly
   let argOffset = 0;
-  let baseDate = new Date();
+  let baseDate = toVienna(Date.now()); // Vienna "now" as a local Date
   const dateParsed = parseDatePrefix(args[0]);
   if (dateParsed) {
-    baseDate = dateParsed;
+    baseDate = dateParsed; // already Vienna-zoned midnight
     argOffset = 1;
   }
 
@@ -473,13 +509,13 @@ async function handleLog(args: string[], chatId: number, lang: Lang) {
     i++;
   }
 
-  // Use baseDate noon as the createdAt timestamp for historical entries
+  // Use baseDate noon (Vienna) as the createdAt timestamp for historical entries
   // This ensures entries appear on the correct day in analytics
   const isHistorical = argOffset === 1; // date prefix was provided
-  const entryDate = new Date(baseDate);
-  entryDate.setHours(12, 0, 0, 0); // use noon as anchor for historical entries
-  const createdAt = isHistorical ? entryDate.getTime() : Date.now();
-  const dateLabel = isHistorical ? ` (${format(baseDate, "dd.MM.yyyy")})` : "";
+  const entryDate = new Date(baseDate); // baseDate is already Vienna-zoned
+  entryDate.setHours(12, 0, 0, 0); // noon Vienna time
+  const createdAt = isHistorical ? fromVienna(entryDate) : Date.now();
+  const dateLabel = isHistorical ? ` (${fmtVienna(createdAt, "dd.MM.yyyy")})` : "";
 
   // Handle diaper (for each child)
   if (isDiaper) {
@@ -576,7 +612,7 @@ async function handleDelete(args: string[], chatId: number, lang: Lang) {
     // Try to delete last feeding first, then last diaper
     const feeding = await deleteLastFeedingSession(child).catch(() => null);
     if (feeding) {
-      const timeStr = format(new Date(feeding.createdAt), "HH:mm dd.MM.yyyy");
+      const timeStr = fmtVienna(feeding.createdAt, "HH:mm dd.MM.yyyy");
       const parts: string[] = [];
       if (feeding.leftStart && feeding.leftEnd) parts.push(`L ${formatMs(feeding.leftEnd - feeding.leftStart)}`);
       if (feeding.rightStart && feeding.rightEnd) parts.push(`R ${formatMs(feeding.rightEnd - feeding.rightStart)}`);
@@ -593,7 +629,7 @@ async function handleDelete(args: string[], chatId: number, lang: Lang) {
 
     const diaper = await deleteLastDiaperChange(child).catch(() => null);
     if (diaper) {
-      const timeStr = format(new Date(diaper.changedAt), "HH:mm dd.MM.yyyy");
+      const timeStr = fmtVienna(diaper.changedAt, "HH:mm dd.MM.yyyy");
       const typeLabels: Record<string, Record<Lang, string>> = {
         wet:   { en: "Wet 💧",   de: "Nass 💧",       uk: "Мокрий 💧" },
         dirty: { en: "Dirty 💩", de: "Schmutzig 💩",  uk: "Брудний 💩" },
@@ -633,17 +669,16 @@ async function handleWeek(chatId: number, lang: Lang) {
 }
 
 async function handleSummary(args: string[], chatId: number, lang: Lang) {
-  let targetDate = new Date();
+  // Default to Vienna "today"
+  let targetMs = Date.now();
   if (args.length > 0) {
-    const match = args[0].match(/^(\d{1,2})\.(\d{1,2})(?:\.(\d{4}))?$/);
-    if (match) {
-      const day = parseInt(match[1]);
-      const month = parseInt(match[2]) - 1;
-      const year = match[3] ? parseInt(match[3]) : new Date().getFullYear();
-      targetDate = new Date(year, month, day);
+    const parsed = parseDatePrefix(args[0]);
+    if (parsed) {
+      // parsed is a Vienna-zoned midnight — convert to UTC ms
+      targetMs = fromVienna(parsed);
     }
   }
-  const summary = await buildDailySummary(targetDate.getTime(), lang);
+  const summary = await buildDailySummary(targetMs, lang);
   await sendMessage(chatId, summary, analyticsButton(lang));
 }
 
@@ -708,7 +743,7 @@ async function handleLast(args: string[], chatId: number, lang: Lang) {
     } else {
       const last = feedRows[0];
       const ago = Date.now() - last.createdAt;
-      const timeStr = format(new Date(last.createdAt), "HH:mm");
+      const timeStr = fmtVienna(last.createdAt, "HH:mm");
       const parts: string[] = [];
       if (last.leftStart && last.leftEnd) parts.push(`👈 ${formatMs(last.leftEnd - last.leftStart)}`);
       if (last.rightStart && last.rightEnd) parts.push(`👉 ${formatMs(last.rightEnd - last.rightStart)}`);
@@ -734,7 +769,7 @@ async function handleLast(args: string[], chatId: number, lang: Lang) {
     } else {
       const lastDiaper = diaperRows[0];
       const diaperAgo = Date.now() - lastDiaper.changedAt;
-      const diaperTimeStr = format(new Date(lastDiaper.changedAt), "HH:mm");
+      const diaperTimeStr = fmtVienna(lastDiaper.changedAt, "HH:mm");
       const typeIcons: Record<string, string> = { wet: "💧", dirty: "💩", both: "💧💩" };
       const icon = typeIcons[lastDiaper.type] ?? "";
       msg += `${diaperLabel[lang]}: <b>${diaperTimeStr}</b> ${icon} — <b>${formatMs(diaperAgo)} ${agoLabels[lang]}</b>\n`;

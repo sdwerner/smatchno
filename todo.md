@@ -138,3 +138,12 @@
 - [x] Show last diaper change in /last output (type, time, ago)
 - [x] Support optional child argument: /last nica or /last nici (defaults to both)
 - [x] Update /help text to document /last nica|nici syntax
+
+## Timezone Fix (Vienna UTC+1/UTC+2)
+
+- [x] Fix bot: parse user-typed HH:MM as Vienna local time (not server NY time)
+- [x] Fix bot: startOfDay/endOfDay for /today, /summary, /week use Vienna midnight
+- [x] Fix bot: format() calls for display use Vienna time
+- [x] Fix bot: historical date prefix (DD.MM) uses Vienna midnight
+- [x] Fix dashboard: date navigation boundaries use Vienna time (browser-local = correct)
+- [x] Fix dashboard: format() display calls use Vienna time (browser-local = correct)

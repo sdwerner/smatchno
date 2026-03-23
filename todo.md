@@ -184,3 +184,10 @@
 - [x] Voice fuzzy-match: correct common Whisper mis-transcriptions (lock→log, lok→log, diary→diaper, etc.)
 - [x] Voice confirmation: append 🎙 icon to bot replies that came from a voice message
 - [x] Natural-language shortcuts: "last"/"status" without slash → /last; "today" → /today; "help" → /help
+
+## Voice Recognition Debug
+
+- [x] Debug voice pipeline end-to-end: root cause was Whisper trailing punctuation ("Last." not matching "last")
+- [x] Fix: strip trailing punctuation in normalizeVoiceTranscription before all regex matching
+- [x] Fix: MIME type normalization for audio/ogg; codecs=opus and application/octet-stream from Telegram
+- [x] Add 16 regression tests for voice normalizer (66 total tests passing)

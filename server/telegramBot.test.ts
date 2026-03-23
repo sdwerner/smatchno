@@ -13,7 +13,7 @@ vi.mock("axios", () => ({
 }));
 
 import axios from "axios";
-import { handleWebhookUpdate, buildDailySummary, type TelegramUpdate } from "./telegramBot";
+import { handleWebhookUpdate, buildDailySummary, normalizeVoiceTranscription, type TelegramUpdate } from "./telegramBot";
 
 const mockedAxios = vi.mocked(axios.post);
 
@@ -328,5 +328,76 @@ describe("Telegram bot — /log date prefix", () => {
     const body = mockedAxios.mock.calls[0][1] as { text: string };
     expect(body.text).toContain("DD.MM");
     expect(body.text).toContain("backfill");
+  });
+});
+
+// ─── normalizeVoiceTranscription regression tests ────────────────────────────
+
+describe("normalizeVoiceTranscription — Whisper punctuation and mis-transcriptions", () => {
+  // Root cause: Whisper always appends trailing punctuation (period, exclamation, etc.)
+  // which caused the command switch to fall through to the "unknown command" default.
+
+  it("strips trailing period from 'Last.'", () => {
+    expect(normalizeVoiceTranscription("Last.")).toBe("/last");
+  });
+
+  it("strips trailing exclamation from 'Last!'", () => {
+    expect(normalizeVoiceTranscription("Last!")).toBe("/last");
+  });
+
+  it("strips trailing period from 'Today.'", () => {
+    expect(normalizeVoiceTranscription("Today.")).toBe("/today");
+  });
+
+  it("strips trailing period from 'Help.'", () => {
+    expect(normalizeVoiceTranscription("Help.")).toBe("/help");
+  });
+
+  it("strips trailing period from 'Week.'", () => {
+    expect(normalizeVoiceTranscription("Week.")).toBe("/week");
+  });
+
+  it("normalizes 'Status.' → /last", () => {
+    expect(normalizeVoiceTranscription("Status.")).toBe("/last");
+  });
+
+  it("normalizes 'Lock nica left 9 to 9:30.' → /log nica left 9-9:30", () => {
+    expect(normalizeVoiceTranscription("Lock nica left 9 to 9:30.")).toBe("/log nica left 9-9:30");
+  });
+
+  it("normalizes 'Log nica left 9 to 9:30.' → /log nica left 9-9:30", () => {
+    expect(normalizeVoiceTranscription("Log nica left 9 to 9:30.")).toBe("/log nica left 9-9:30");
+  });
+
+  it("normalizes German 'Heute.' → /today", () => {
+    expect(normalizeVoiceTranscription("Heute.")).toBe("/today");
+  });
+
+  it("normalizes German 'Letzte.' → /last", () => {
+    expect(normalizeVoiceTranscription("Letzte.")).toBe("/last");
+  });
+
+  it("normalizes German 'Letzter.' → /last", () => {
+    expect(normalizeVoiceTranscription("Letzter.")).toBe("/last");
+  });
+
+  it("normalizes German 'Woche.' → /week", () => {
+    expect(normalizeVoiceTranscription("Woche.")).toBe("/week");
+  });
+
+  it("normalizes German 'Hilfe.' → /help", () => {
+    expect(normalizeVoiceTranscription("Hilfe.")).toBe("/help");
+  });
+
+  it("normalizes 'Log nika diary wet.' → /log nica diaper wet", () => {
+    expect(normalizeVoiceTranscription("Log nika diary wet.")).toBe("/log nica diaper wet");
+  });
+
+  it("handles already-clean input without slash", () => {
+    expect(normalizeVoiceTranscription("last")).toBe("/last");
+  });
+
+  it("handles input with leading slash", () => {
+    expect(normalizeVoiceTranscription("/last")).toBe("/last");
   });
 });

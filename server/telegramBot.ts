@@ -980,42 +980,49 @@ async function handleSettings(chatId: number, lang: Lang) {
  * Normalize common Whisper mis-transcriptions for baby tracker commands.
  * Handles EN/DE/UK variants and phonetic near-misses.
  */
-function normalizeVoiceTranscription(raw: string): string {
+export function normalizeVoiceTranscription(raw: string): string {
   let s = raw.trim().toLowerCase();
 
   // Remove leading slash if present (we'll add it back)
   const hadSlash = s.startsWith("/");
   if (hadSlash) s = s.slice(1);
 
+  // ── Strip trailing punctuation that Whisper always adds ─────────────────────────
+  // Whisper transcribes "Last" as "Last." and "Log nica left 9 to 9:30" as
+  // "Log nica left 9 to 9:30." — strip the trailing period/punctuation first.
+  s = s.replace(/[.!?,;]+$/, "");
+
   // ── Command word fixes ──────────────────────────────────────────────────────
   // log: lock, lok, log, lug, lag, lop, loch, lok, logg, logs
   s = s.replace(/^(lock|lok|lug|lag|lop|loch|logg|logs|loge|log)\b/, "log");
   // delete: delet, deleat, dileet, delete
   s = s.replace(/^(delet|deleat|dileet|deletee)\b/, "delete");
-  // today: to day, to-day
-  s = s.replace(/^(to day|to-day)\b/, "today");
-  // last: lust, las, lest
-  s = s.replace(/^(lust|las|lest)\b/, "last");
-  // week: wick, wik
-  s = s.replace(/^(wick|wik)\b/, "week");
+  // today: to day, to-day, heute
+  s = s.replace(/^(to day|to-day|heute)\b/, "today");
+  // last: lust, las, lest, letzte, letzter, letztes
+  s = s.replace(/^(lust|las|lest|letzte[rs]?)\b/, "last");
+  // week: wick, wik, woche
+  s = s.replace(/^(wick|wik|woche)\b/, "week");
   // summary: sumary, summery, somary
   s = s.replace(/^(sumary|summery|somary|sumery)\b/, "summary");
   // version: vershion, verson
   s = s.replace(/^(vershion|verson)\b/, "version");
-  // settings: seetings, setings
-  s = s.replace(/^(seetings|setings)\b/, "settings");
+  // settings: seetings, setings, einstellungen
+  s = s.replace(/^(seetings|setings|einstellungen)\b/, "settings");
+  // help: hilfe, допомога
+  s = s.replace(/^(hilfe|допомога)\b/, "help");
 
   // ── Natural-language shortcuts (no slash needed) ────────────────────────────
   // "status" / "what's the status" → last
   if (/^(status|what'?s? the status|show status)/.test(s)) s = "last";
-  // "help" / "hilfe" / "допомога" → help
-  if (/^(help|hilfe|допомога)$/.test(s)) s = "help";
-  // bare "today" / "heute" / "сьогодні" → today
-  if (/^(today|heute|сьогодні)$/.test(s)) s = "today";
-  // bare "last" / "letzte" / "останнє" → last
-  if (/^(last|letzte|останнє|останній)$/.test(s)) s = "last";
-  // bare "week" / "woche" / "тиждень" → week
-  if (/^(week|woche|тиждень)$/.test(s)) s = "week";
+  // bare "today" / "сьогодні" → today (DE/UK already handled above)
+  if (/^(today|сьогодні)$/.test(s)) s = "today";
+  // bare "last" / "останнє" → last (DE already handled above)
+  if (/^(last|останнє|останній)$/.test(s)) s = "last";
+  // bare "week" / "тиждень" → week (DE already handled above)
+  if (/^(week|тиждень)$/.test(s)) s = "week";
+  // bare "help" → help
+  if (/^help$/.test(s)) s = "help";
 
   // ── Argument word fixes ─────────────────────────────────────────────────────
   // child names: nica/nici variants

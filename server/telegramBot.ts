@@ -156,9 +156,15 @@ function formatMs(ms: number): string {
 }
 
 function parseTime(str: string): { h: number; m: number } | null {
-  const match = str.match(/^(\d{1,2}):(\d{2})$/);
-  if (!match) return null;
-  return { h: parseInt(match[1]), m: parseInt(match[2]) };
+  // Accept HH:MM or bare hour H (e.g. "9" → 9:00, from voice "nine o'clock")
+  const fullMatch = str.match(/^(\d{1,2}):(\d{2})$/);
+  if (fullMatch) return { h: parseInt(fullMatch[1]), m: parseInt(fullMatch[2]) };
+  const bareMatch = str.match(/^(\d{1,2})$/);
+  if (bareMatch) {
+    const h = parseInt(bareMatch[1]);
+    if (h >= 0 && h <= 23) return { h, m: 0 };
+  }
+  return null;
 }
 
 function timeToMs(h: number, m: number, baseDate: Date): number {
@@ -400,7 +406,8 @@ function resolveChildren(raw: string): Array<"nica" | "nici"> | null {
 
 // Parse a time range and optionally split it 50/50 for both-breast mode
 function parseTimeRange(rangeStr: string, now: Date): { start: number; end: number } | null {
-  const match = rangeStr.match(/^(\d{1,2}:\d{2})-(\d{1,2}:\d{2})$/);
+  // Accept HH:MM-HH:MM, H:MM-H:MM, H-H, H:MM-H, H-H:MM (bare hours = :00)
+  const match = rangeStr.match(/^(\d{1,2}(?::\d{2})?)-(\d{1,2}(?::\d{2})?)$/);
   if (!match) return null;
   const s = parseTime(match[1]);
   const e = parseTime(match[2]);
@@ -1028,7 +1035,6 @@ export function normalizeVoiceTranscription(raw: string): string {
   // child names: nica/nici variants
   s = s.replace(/\bnika\b/g, "nica");
   s = s.replace(/\bnicky\b/g, "nici");
-  s = s.replace(/\bnicky\b/g, "nici");
   // diaper: diary, diaper, nappy, windel, підгузок
   s = s.replace(/\b(diary|diper|diapper|nappy)\b/g, "diaper");
   // wet: whet, wett
@@ -1045,12 +1051,73 @@ export function normalizeVoiceTranscription(raw: string): string {
   s = s.replace(/\b(oun|owne)\b/g, "own");
   // bottle: bottel, botle
   s = s.replace(/\b(bottel|botle)\b/g, "bottle");
-  // "to" between times: "9 to 9:30" → "9-9:30" (normalize range)
+
+  // ── Spoken number words → digits ────────────────────────────────────────────
+  // EN: zero–twelve (covers all hours 0–12 and minutes like "thirty", "forty-five")
+  const EN_NUMS: [RegExp, string][] = [
+    [/\bzero\b/g, "0"], [/\bone\b/g, "1"], [/\btwo\b/g, "2"],
+    [/\bthree\b/g, "3"], [/\bfour\b/g, "4"], [/\bfive\b/g, "5"],
+    [/\bsix\b/g, "6"], [/\bseven\b/g, "7"], [/\beight\b/g, "8"],
+    [/\bnine\b/g, "9"], [/\bten\b/g, "10"], [/\beleven\b/g, "11"],
+    [/\btwelve\b/g, "12"],
+    // Minutes
+    [/\bthirty\b/g, "30"], [/\bfifteen\b/g, "15"],
+    [/\bforty[-\s]?five\b/g, "45"], [/\bforty\b/g, "40"],
+    [/\btwenty[-\s]?five\b/g, "25"], [/\btwenty\b/g, "20"],
+    [/\bfifty\b/g, "50"], [/\boh\b/g, "0"],
+  ];
+  for (const [re, digit] of EN_NUMS) s = s.replace(re, digit);
+
+  // DE: ein/eins/zwei/drei…zwölf
+  const DE_NUMS: [RegExp, string][] = [
+    [/\bnull\b/g, "0"], [/\beins?\b/g, "1"], [/\bzwei\b/g, "2"],
+    [/\bdrei\b/g, "3"], [/\bvier\b/g, "4"], [/\bfünf\b/g, "5"],
+    [/\bsechs\b/g, "6"], [/\bsieben\b/g, "7"], [/\bacht\b/g, "8"],
+    [/\bneun\b/g, "9"], [/\bzehn\b/g, "10"], [/\belf\b/g, "11"],
+    [/\bzwölf\b/g, "12"],
+    [/\bdrei(?:ß|ss)ig\b/g, "30"], [/\bfünfzehn\b/g, "15"],
+    [/\bvierzig\b/g, "40"], [/\bfünfundvierzig\b/g, "45"],
+    [/\bzwanzig\b/g, "20"],
+  ];
+  for (const [re, digit] of DE_NUMS) s = s.replace(re, digit);
+
+  // ── "half past" / "halb" patterns → HH:30 ───────────────────────────────────
+  // EN: "half past nine" → "9:30", "half nine" → "9:30"
+  s = s.replace(/half past (\d{1,2})/g, "$1:30");
+  s = s.replace(/half (\d{1,2})/g, "$1:30");
+  // DE: "halb neun" (= 8:30 in German convention, but users likely mean 9:30 colloquially)
+  // We map "halb X" → "X:30" (informal/colloquial interpretation)
+  s = s.replace(/halb (\d{1,2})/g, "$1:30");
+  // "quarter past" → HH:15, "quarter to" → (H-1):45
+  s = s.replace(/quarter past (\d{1,2})/g, (_, h) => `${h}:15`);
+  s = s.replace(/quarter to (\d{1,2})/g, (_, h) => `${Math.max(0, parseInt(h) - 1)}:45`);
+  // "viertel nach" (DE quarter past), "dreiviertel" (DE quarter to)
+  s = s.replace(/viertel nach (\d{1,2})/g, (_, h) => `${h}:15`);
+  s = s.replace(/dreiviertel (\d{1,2})/g, (_, h) => `${Math.max(0, parseInt(h) - 1)}:45`);
+
+  // ── "o'clock" / "o clock" / "uhr" → strip (bare hour is valid) ──────────────
+  s = s.replace(/(\d{1,2})\s+o'?\s*clock/g, "$1");
+  s = s.replace(/(\d{1,2})\s+uhr/g, "$1");
+  s = s.replace(/(\d{1,2})\s+година/g, "$1");
+
+  // ── Bare hour + minute: "9 30" → "9:30" (MUST run BEFORE range separators) ─────
+  // Whisper sometimes omits the colon, e.g. "nine thirty" → "9 30" after number conversion.
+  // Pattern: hour (0-23) followed by a space and a two-digit minute (00-59).
+  // Use word boundaries and negative lookahead/lookbehind to avoid false positives.
+  s = s.replace(/\b([01]?\d|2[0-3])\s+(0[0-9]|[1-5][0-9])\b/g, "$1:$2");
+
+  // ── Time range separators ────────────────────────────────────────────────────
+  // "to" / "bis" / "до" between times: "9:30 to 10:00" → "9:30-10:00"
+  // Also handles bare hours: "9 to 10" → "9-10", then bare-hour expansion below
   s = s.replace(/(\d{1,2}(?::\d{2})?)\s+to\s+(\d{1,2}(?::\d{2})?)/g, "$1-$2");
-  // "bis" (DE) between times: "9 bis 9:30" → "9-9:30"
   s = s.replace(/(\d{1,2}(?::\d{2})?)\s+bis\s+(\d{1,2}(?::\d{2})?)/g, "$1-$2");
-  // "до" (UK) between times
   s = s.replace(/(\d{1,2}(?::\d{2})?)\s+до\s+(\d{1,2}(?::\d{2})?)/g, "$1-$2");
+
+  // ── Bare hour range: "9-10" → "9:00-10:00" ───────────────────────────────────
+  // Only expand bare hours in a range (both sides have no colon)
+  s = s.replace(/(?<![:\d])(\d{1,2})-(\d{1,2})(?![:\d])/g, (m, a, b) => `${a}:00-${b}:00`);
+  // If start has :MM but end is bare hour: "9:25-10" → "9:25-10:00"
+  s = s.replace(/(\d{1,2}:\d{2})-(\d{1,2})(?![:\d])/g, "$1-$2:00");
 
   return `/${s}`;
 }

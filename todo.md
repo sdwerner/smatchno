@@ -191,3 +191,14 @@
 - [x] Fix: strip trailing punctuation in normalizeVoiceTranscription before all regex matching
 - [x] Fix: MIME type normalization for audio/ogg; codecs=opus and application/octet-stream from Telegram
 - [x] Add 16 regression tests for voice normalizer (66 total tests passing)
+
+## Voice Time Parsing Improvements
+
+- [x] Handle "o'clock" / "o clock" / "uhr" (DE) / "година" (UK) → strip to bare hour
+- [x] Handle spoken number words → digits EN (zero–twelve, thirty, fifteen, etc.) + DE (null–zwölf, dreißig, etc.)
+- [x] Handle "half past nine" / "half nine" / "halb X" → HH:30 format
+- [x] Handle "quarter past" / "quarter to" / "viertel nach" / "dreiviertel" → HH:15 / HH:45
+- [x] Fix parseTime to accept bare hours ("9" → 9:00)
+- [x] Fix parseTimeRange to accept bare hours on either side
+- [x] Fix ordering: bare-hour+minute colon insertion runs BEFORE range separators
+- [x] 20/20 standalone normalizer tests + 66/66 vitest tests passing

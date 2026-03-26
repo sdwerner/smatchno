@@ -7,21 +7,21 @@ import { ThemeProvider } from "./contexts/ThemeContext";
 import { LanguageProvider } from "./contexts/LanguageContext";
 import { ChildProvider } from "./contexts/ChildContext";
 import { TelegramProvider } from "./contexts/TelegramContext";
-import AppLayout from "./components/AppLayout";
-import FeedingPage from "./pages/FeedingPage";
-import DiaperPage from "./pages/DiaperPage";
-import SummaryPage from "./pages/SummaryPage";
+import AnalyticsDashboard from "./pages/AnalyticsDashboard";
 import SettingsPage from "./pages/SettingsPage";
-import LoginPage from "./pages/LoginPage";
 
+/**
+ * The app is now a Telegram-first analytics dashboard.
+ * All data entry happens via the Telegram bot (/log command).
+ * This web app is the read-only analytics view, accessible via the
+ * "📊 Analytics Dashboard" inline button in the bot.
+ * No login is required — the dashboard is public (read-only).
+ */
 function Router() {
   return (
     <Switch>
-      <Route path="/" component={FeedingPage} />
-      <Route path="/diaper" component={DiaperPage} />
-      <Route path="/summary" component={SummaryPage} />
+      <Route path="/" component={AnalyticsDashboard} />
       <Route path="/settings" component={SettingsPage} />
-      <Route path="/login" component={LoginPage} />
       <Route path="/404" component={NotFound} />
       <Route component={NotFound} />
     </Switch>
@@ -37,9 +37,7 @@ function App() {
             <ChildProvider>
               <TooltipProvider>
                 <Toaster position="top-center" />
-                <AppLayout>
-                  <Router />
-                </AppLayout>
+                <Router />
               </TooltipProvider>
             </ChildProvider>
           </LanguageProvider>

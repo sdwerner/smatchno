@@ -8,10 +8,12 @@ import {
   getRecentFeedingSessions,
   getFeedingSessionsForDay,
   deleteFeedingSession,
+  updateFeedingSession,
   insertDiaperChange,
   getRecentDiaperChanges,
   getDiaperChangesForDay,
   deleteDiaperChange,
+  updateDiaperChange,
   getTelegramSettings,
   upsertTelegramSettings,
 } from "./db";
@@ -67,6 +69,25 @@ const feedingRouter = router({
       await deleteFeedingSession(input.id);
       return { success: true };
     }),
+
+  update: protectedProcedure
+    .input(
+      z.object({
+        id: z.number(),
+        leftStart: z.number().nullable().optional(),
+        leftEnd: z.number().nullable().optional(),
+        rightStart: z.number().nullable().optional(),
+        rightEnd: z.number().nullable().optional(),
+        bottleMl: z.number().nullable().optional(),
+        notes: z.string().nullable().optional(),
+        createdAt: z.number().optional(),
+      })
+    )
+    .mutation(async ({ input }) => {
+      const { id, ...data } = input;
+      await updateFeedingSession(id, data);
+      return { success: true };
+    }),
 });
 
 // ─── Diaper Router ────────────────────────────────────────────────────────────
@@ -110,6 +131,20 @@ const diaperRouter = router({
     .input(z.object({ id: z.number() }))
     .mutation(async ({ input }) => {
       await deleteDiaperChange(input.id);
+      return { success: true };
+    }),
+
+  update: protectedProcedure
+    .input(
+      z.object({
+        id: z.number(),
+        type: z.enum(["wet", "dirty", "both"]).optional(),
+        changedAt: z.number().optional(),
+      })
+    )
+    .mutation(async ({ input }) => {
+      const { id, ...data } = input;
+      await updateDiaperChange(id, data);
       return { success: true };
     }),
 });
@@ -165,6 +200,34 @@ const telegramRouter = router({
     .input(z.object({ dateMs: z.number() }))
     .mutation(async ({ input }) => {
       return sendTelegramDigest(input.dateMs);
+    }),
+});
+
+// ─── Analytics Router (public, for the dashboard) ───────────────────────────
+
+const analyticsRouter = router({
+  dailyStats: publicProcedure
+    .input(z.object({ dayStartMs: z.number(), dayEndMs: z.number() }))
+    .query(async ({ input }) => {
+      const [nicaFeeds, niciFeeds, nicaDiapers, niciDiapers] = await Promise.all([
+        getFeedingSessionsForDay("nica", input.dayStartMs, input.dayEndMs),
+        getFeedingSessionsForDay("nici", input.dayStartMs, input.dayEndMs),
+        getDiaperChangesForDay("nica", input.dayStartMs, input.dayEndMs),
+        getDiaperChangesForDay("nici", input.dayStartMs, input.dayEndMs),
+      ]);
+      return { nicaFeeds, niciFeeds, nicaDiapers, niciDiapers };
+    }),
+
+  weeklyStats: publicProcedure
+    .input(z.object({ weekStartMs: z.number(), weekEndMs: z.number() }))
+    .query(async ({ input }) => {
+      const [nicaFeeds, niciFeeds, nicaDiapers, niciDiapers] = await Promise.all([
+        getFeedingSessionsForDay("nica", input.weekStartMs, input.weekEndMs),
+        getFeedingSessionsForDay("nici", input.weekStartMs, input.weekEndMs),
+        getDiaperChangesForDay("nica", input.weekStartMs, input.weekEndMs),
+        getDiaperChangesForDay("nici", input.weekStartMs, input.weekEndMs),
+      ]);
+      return { nicaFeeds, niciFeeds, nicaDiapers, niciDiapers };
     }),
 });
 
@@ -263,6 +326,7 @@ export const appRouter = router({
   feeding: feedingRouter,
   diaper: diaperRouter,
   telegram: telegramRouter,
+  analytics: analyticsRouter,
 });
 
 export type AppRouter = typeof appRouter;

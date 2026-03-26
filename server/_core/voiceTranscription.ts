@@ -198,6 +198,8 @@ export async function transcribeAudio(
  * Helper function to get file extension from MIME type
  */
 function getFileExtension(mimeType: string): string {
+  // Normalize MIME type: strip codec parameters (e.g. 'audio/ogg; codecs=opus' → 'audio/ogg')
+  const baseMime = mimeType.split(';')[0].trim().toLowerCase();
   const mimeToExt: Record<string, string> = {
     'audio/webm': 'webm',
     'audio/mp3': 'mp3',
@@ -207,9 +209,12 @@ function getFileExtension(mimeType: string): string {
     'audio/ogg': 'ogg',
     'audio/m4a': 'm4a',
     'audio/mp4': 'm4a',
+    // Telegram file server sometimes returns these
+    'application/octet-stream': 'ogg',  // Telegram voice = OGG/OPUS
+    'audio/opus': 'ogg',
   };
   
-  return mimeToExt[mimeType] || 'audio';
+  return mimeToExt[baseMime] || 'ogg';  // Default to ogg for Telegram voice messages
 }
 
 /**

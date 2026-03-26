@@ -2,7 +2,7 @@ import "dotenv/config";
 import express from "express";
 import { startTelegramScheduler } from "../telegramScheduler";
 import { startFeedingReminder } from "../feedingReminder";
-import { handleWebhookUpdate, setWebhook } from "../telegramBot";
+import { handleWebhookUpdate, setWebhook, notifyDeployment } from "../telegramBot";
 import { createServer } from "http";
 import net from "net";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
@@ -41,12 +41,24 @@ async function startServer() {
 
   // Telegram webhook endpoint
   app.post("/api/telegram/webhook", async (req, res) => {
+    const token = process.env.TELEGRAM_BOT_TOKEN;
+    console.log(`[Webhook] Received update. Token present: ${!!token}, Token length: ${token?.length ?? 0}`);
     try {
       await handleWebhookUpdate(req.body);
     } catch (err) {
       console.error("[Webhook] Error:", err);
     }
     res.sendStatus(200);
+  });
+
+  // Debug endpoint — remove after confirming bot works
+  app.get("/api/debug/env", (_req, res) => {
+    res.json({
+      hasToken: !!process.env.TELEGRAM_BOT_TOKEN,
+      tokenLength: process.env.TELEGRAM_BOT_TOKEN?.length ?? 0,
+      chatId: process.env.TELEGRAM_CHAT_ID ?? "(not set)",
+      nodeEnv: process.env.NODE_ENV,
+    });
   });
   // tRPC API
   app.use(
@@ -80,6 +92,8 @@ async function startServer() {
     if (token && process.env.NODE_ENV === "production") {
       try {
         await setWebhook(`${appUrl}/api/telegram/webhook`);
+        // Small delay to ensure webhook is registered before sending notification
+        setTimeout(() => notifyDeployment().catch(console.error), 3000);
       } catch (err) {
         console.error("[Webhook] Failed to register:", err);
       }

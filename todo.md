@@ -56,4 +56,149 @@
 - [x] Telegram Mini App launch button in bot
 - [x] Telegram initData validation for auth (TelegramContext)
 - [x] Tests for bot command handlers (12 tests, all passing)
-- [ ] Push updated code to GitHub
+- [x] Push updated code to GitHub
+
+## Telegram-First Rebuild
+
+- [x] /log command: structured parser for child, side (left/right/bottle), time range
+- [x] Language auto-detection (DE/EN/UK) per user/message
+- [x] Confirmation message after each /log entry
+- [x] /today command: today's summary per child
+- [x] /week command: 7-day stats per child
+- [x] /summary command: specific date summary with inline Analytics button
+- [x] /help command: updated for new command set (EN/DE/UK)
+- [x] Refined 3h feeding reminder with multilingual formatting
+- [x] Inline "📊 Analytics Dashboard" button in bot messages → opens web dashboard
+- [x] Rebuilt web app as analytics-only dashboard (no login required)
+- [x] Charts: bar chart for feedings, line chart for diapers (7-day)
+- [x] Per-child feeding timeline with duration breakdown
+- [x] 29 tests passing across 3 test files
+- [x] Push to GitHub
+
+## Minor Improvements
+
+- [x] Show app version number in the analytics dashboard
+
+## Bug Fixes
+
+- [x] Fix BUTTON_TYPE_INVALID: web_app button not allowed in regular groups — replaced with plain URL button
+
+## /log Command Extensions
+
+- [x] Support `own Xml` (own milk bottle) in /log command
+- [x] Support `other Xml` (other/formula milk bottle) in /log command
+- [x] Support combined breast + bottle in one /log entry: e.g. /log nici right 14:00-15:00 own 15ml
+- [x] Case-insensitive child names (Nica/nica/NICA) — working
+- [x] Additional breast aliases: l/r, li/re, re/ri shortcuts
+- [x] Update /help text to document new bottle syntax
+- [x] Update i18n strings for own/other milk labels
+- [x] Tests for new /log bottle parsing (39 total, all passing)
+- [x] Support `both` as child name → logs same session for Nica AND Nici
+- [x] Support `both` as breast side → total time split 50/50 between left and right
+- [x] Support `/log both both 14:00-15:00` → joint session, both babies, both breasts split
+
+## Bug Fixes (Active)
+
+- [x] Bot /log command not saving entries to database — fixed: loggedBy was 0 (FK violation) instead of null; also fixed ECONNRESET with connection pool + withRetry
+
+## Historical Entry Backfill
+
+- [ ] Support optional date prefix in /log: DD.MM or DD.MM.YYYY (e.g. /log 19.03 nica left 14:00-14:10)
+- [ ] Default to today if no date given (existing behaviour preserved)
+- [ ] Update /help text to document date prefix syntax
+- [ ] Tests for date prefix parsing
+
+## Historical Entry Backfill
+
+- [x] Make date prefix OPTIONAL in /log (DD.MM or DD.MM.YYYY) — defaults to today if omitted
+- [x] Update /help text to show date as optional first argument (all 3 languages)
+- [x] Tests for date prefix parsing (with and without date) — 44 tests total, all passing
+
+## /delete Command
+
+- [x] Add deleteLastEntry(child) DB helper in db.ts
+- [x] Add /delete command handler in telegramBot.ts (nica / nici / both)
+- [x] Confirmation message showing what was deleted (type, time, date)
+- [x] Register /delete in bot commands via BotFather API
+- [x] Update /help text with /delete syntax
+- [x] Tests for /delete command
+
+## Dashboard Edit/Delete
+
+- [x] Add updateFeedingSession / updateDiaperChange DB helpers
+- [x] Add feeding.update and diaper.update tRPC procedures
+- [x] Add edit modal in AnalyticsDashboard for feeding entries (time, side, ml)
+- [x] Add edit modal for diaper entries (type, time)
+- [x] Add delete button with confirmation on each timeline entry
+- [x] Cache invalidation after edit/delete
+
+## /last Command Fix
+
+- [x] Show bottle feeding details in /last output (ml, type)
+- [x] Show last diaper change in /last output (type, time, ago)
+- [x] Support optional child argument: /last nica or /last nici (defaults to both)
+- [x] Update /help text to document /last nica|nici syntax
+
+## Timezone Fix (Vienna UTC+1/UTC+2)
+
+- [x] Fix bot: parse user-typed HH:MM as Vienna local time (not server NY time)
+- [x] Fix bot: startOfDay/endOfDay for /today, /summary, /week use Vienna midnight
+- [x] Fix bot: format() calls for display use Vienna time
+- [x] Fix bot: historical date prefix (DD.MM) uses Vienna midnight
+- [x] Fix dashboard: date navigation boundaries use Vienna time (browser-local = correct)
+- [x] Fix dashboard: format() display calls use Vienna time (browser-local = correct)
+
+## Dashboard Parity (bot = dashboard)
+
+- [x] Wire /settings route in App.tsx and add gear icon nav link in dashboard header
+- [x] Add Log Entry UI in dashboard: manual feeding log (child, side/bottle, time range)
+- [x] Add Log Entry UI in dashboard: manual diaper log (child, type, time)
+- [ ] Add Delete Last Entry button in dashboard (mirrors /delete command) — deferred
+- [x] Add /settings bot command: show current config + link to settings page
+- [x] Update /help to document /settings command
+
+## Bottle ml Parsing Bug
+
+- [x] Fix: /log nica own bottle 19:25-19:30 incorrectly parses 19 (hour from time range) as ml amount
+
+## Deployment Notification
+
+- [x] Post Telegram message on server startup with version + changelog (so deploys are visible in chat)
+
+## /version Command
+
+- [x] Add /version bot command: show current version, build date, uptime
+- [x] Add /version to /help in EN/DE/UK
+
+## Voice Commands
+
+- [x] Handle Telegram voice messages: download OGG audio from Telegram file API
+- [x] Transcribe via Whisper (voiceTranscription helper)
+- [x] Route transcribed text through existing command dispatcher
+- [x] Reply with transcription echo + command result (so user can see what was understood)
+- [x] Handle transcription errors gracefully (reply with error message)
+
+## /version Fix + Voice Improvements
+
+- [x] Fix /version error: resolved on deployment (import.meta.url works in production)
+- [x] Voice fuzzy-match: correct common Whisper mis-transcriptions (lock→log, lok→log, diary→diaper, etc.)
+- [x] Voice confirmation: append 🎙 icon to bot replies that came from a voice message
+- [x] Natural-language shortcuts: "last"/"status" without slash → /last; "today" → /today; "help" → /help
+
+## Voice Recognition Debug
+
+- [x] Debug voice pipeline end-to-end: root cause was Whisper trailing punctuation ("Last." not matching "last")
+- [x] Fix: strip trailing punctuation in normalizeVoiceTranscription before all regex matching
+- [x] Fix: MIME type normalization for audio/ogg; codecs=opus and application/octet-stream from Telegram
+- [x] Add 16 regression tests for voice normalizer (66 total tests passing)
+
+## Voice Time Parsing Improvements
+
+- [x] Handle "o'clock" / "o clock" / "uhr" (DE) / "година" (UK) → strip to bare hour
+- [x] Handle spoken number words → digits EN (zero–twelve, thirty, fifteen, etc.) + DE (null–zwölf, dreißig, etc.)
+- [x] Handle "half past nine" / "half nine" / "halb X" → HH:30 format
+- [x] Handle "quarter past" / "quarter to" / "viertel nach" / "dreiviertel" → HH:15 / HH:45
+- [x] Fix parseTime to accept bare hours ("9" → 9:00)
+- [x] Fix parseTimeRange to accept bare hours on either side
+- [x] Fix ordering: bare-hour+minute colon insertion runs BEFORE range separators
+- [x] 20/20 standalone normalizer tests + 66/66 vitest tests passing

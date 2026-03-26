@@ -10,7 +10,8 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { Settings, Send, LogOut, Info } from "lucide-react";
+import { Settings, Send, LogOut, Info, ArrowLeft } from "lucide-react";
+import { Link } from "wouter";
 import { cn } from "@/lib/utils";
 
 export default function SettingsPage() {
@@ -63,7 +64,12 @@ export default function SettingsPage() {
   return (
     <div className="container py-4 space-y-4">
       {/* Title */}
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-3">
+        <Link href="/">
+          <button className="p-1.5 rounded-lg hover:bg-muted transition-colors text-muted-foreground" title="Back to dashboard">
+            <ArrowLeft size={18} />
+          </button>
+        </Link>
         <Settings size={20} className="text-primary" />
         <h1 className="text-lg font-bold text-foreground">{t("settingsTitle")}</h1>
       </div>

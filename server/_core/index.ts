@@ -2,6 +2,7 @@ import "dotenv/config";
 import express from "express";
 import { startTelegramScheduler } from "../telegramScheduler";
 import { startFeedingReminder } from "../feedingReminder";
+import { startVitaminDReminder } from "../vitaminDReminder";
 import { handleWebhookUpdate, setWebhook, notifyDeployment } from "../telegramBot";
 import { createServer } from "http";
 import net from "net";
@@ -86,6 +87,7 @@ async function startServer() {
     console.log(`Server running on http://localhost:${port}/`);
     startTelegramScheduler();
     startFeedingReminder();
+    startVitaminDReminder();
     // Register Telegram webhook if token is available
     const token = process.env.TELEGRAM_BOT_TOKEN;
     const appUrl = process.env.VITE_APP_URL || "https://babytrackr-gszrhnzr.manus.space";

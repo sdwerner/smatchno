@@ -15,6 +15,13 @@
       "when": 1773926405618,
       "tag": "0001_yellow_blade",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1775014850765,
+      "tag": "0002_tearful_rocket_racer",
+      "breakpoints": true
     }
   ]
 }

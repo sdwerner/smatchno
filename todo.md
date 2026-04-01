@@ -202,3 +202,17 @@
 - [x] Fix parseTimeRange to accept bare hours on either side
 - [x] Fix ordering: bare-hour+minute colon insertion runs BEFORE range separators
 - [x] 20/20 standalone normalizer tests + 66/66 vitest tests passing
+
+## Vitamin D Tracking
+
+- [x] Add `vitamin_d_logs` table to schema (id, child, givenAt, createdAt)
+- [x] Generate migration SQL and apply to live DB
+- [x] Add DB helpers: insertVitaminDLog, getVitaminDCalendar, hasVitaminDToday
+- [x] Add tRPC procedures: vitaminD.log, vitaminD.calendar
+- [x] Add /log vitd handler in bot (nica/nici/both, with historical date prefix support)
+- [x] Add 2-hour Vitamin D reminder scheduler (fires after noon Vienna time if not logged)
+- [x] Update /help with vitd command in EN/DE/UK
+- [x] Add Vitamin D calendar view in dashboard (green tick ✅ / red cross ❌ per day per child)
+- [x] Add Pill icon link to /vitamind in dashboard header
+- [x] Add /vitamind route in App.tsx
+- [x] 66/66 tests passing, TypeScript clean

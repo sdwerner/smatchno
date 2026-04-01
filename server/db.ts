@@ -1,7 +1,7 @@
 import { eq, and, gte, lte, desc } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import { createPool, type Pool } from "mysql2";
-import { InsertUser, users, feedingSessions, diaperChanges, telegramSettings, InsertFeedingSession, InsertDiaperChange } from "../drizzle/schema";
+import { InsertUser, users, feedingSessions, diaperChanges, telegramSettings, vitaminDLogs, InsertFeedingSession, InsertDiaperChange, InsertVitaminDLog } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -284,5 +284,77 @@ export async function upsertTelegramSettings(data: {
         timezoneOffset: data.timezoneOffset ?? 0,
       });
     }
+  });
+}
+
+// ─── Vitamin D Logs ───────────────────────────────────────────────────────────
+
+export async function insertVitaminDLog(data: InsertVitaminDLog) {
+  return withRetry(async () => {
+    const db = await getDb();
+    if (!db) throw new Error("Database not available");
+    await db.insert(vitaminDLogs).values(data);
+  });
+}
+
+/** Returns all Vitamin D logs for a child within a UTC ms time range (inclusive). */
+export async function getVitaminDLogsForRange(
+  child: "nica" | "nici",
+  startMs: number,
+  endMs: number
+) {
+  return withRetry(async () => {
+    const db = await getDb();
+    if (!db) return [];
+    return db
+      .select()
+      .from(vitaminDLogs)
+      .where(
+        and(
+          eq(vitaminDLogs.child, child),
+          gte(vitaminDLogs.givenAt, startMs),
+          lte(vitaminDLogs.givenAt, endMs)
+        )
+      )
+      .orderBy(desc(vitaminDLogs.givenAt));
+  });
+}
+
+/** Returns the most recent Vitamin D log for a child, or null if none. */
+export async function getLastVitaminDLog(child: "nica" | "nici") {
+  return withRetry(async () => {
+    const db = await getDb();
+    if (!db) return null;
+    const rows = await db
+      .select()
+      .from(vitaminDLogs)
+      .where(eq(vitaminDLogs.child, child))
+      .orderBy(desc(vitaminDLogs.givenAt))
+      .limit(1);
+    return rows.length > 0 ? rows[0] : null;
+  });
+}
+
+/** Returns true if a Vitamin D log exists for the given child within the day window (UTC ms). */
+export async function hasVitaminDToday(
+  child: "nica" | "nici",
+  dayStartMs: number,
+  dayEndMs: number
+): Promise<boolean> {
+  return withRetry(async () => {
+    const db = await getDb();
+    if (!db) return false;
+    const rows = await db
+      .select()
+      .from(vitaminDLogs)
+      .where(
+        and(
+          eq(vitaminDLogs.child, child),
+          gte(vitaminDLogs.givenAt, dayStartMs),
+          lte(vitaminDLogs.givenAt, dayEndMs)
+        )
+      )
+      .limit(1);
+    return rows.length > 0;
   });
 }

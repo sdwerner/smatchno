@@ -1,0 +1,298 @@
+{
+  "query": "\nSELECT TABLE_NAME, COLUMN_NAME, COLUMN_TYPE, IS_NULLABLE, COLUMN_DEFAULT, EXTRA\nFROM information_schema.COLUMNS\nWHERE TABLE_SCHEMA = DATABASE()\nORDER BY TABLE_NAME, ORDINAL_POSITION;\n",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3tMhzpiFrNGot5K.f0e06cb36bdb --database GszrhNzrnJW82GciZqSSye --execute \nSELECT TABLE_NAME, COLUMN_NAME, COLUMN_TYPE, IS_NULLABLE, COLUMN_DEFAULT, EXTRA\nFROM information_schema.COLUMNS\nWHERE TABLE_SCHEMA = DATABASE()\nORDER BY TABLE_NAME, ORDINAL_POSITION;\n",
+  "rows": [
+    {
+      "TABLE_NAME": "__drizzle_migrations",
+      "COLUMN_NAME": "id",
+      "COLUMN_TYPE": "bigint unsigned",
+      "IS_NULLABLE": "NO",
+      "COLUMN_DEFAULT": "NULL",
+      "EXTRA": "auto_increment"
+    },
+    {
+      "TABLE_NAME": "__drizzle_migrations",
+      "COLUMN_NAME": "hash",
+      "COLUMN_TYPE": "text",
+      "IS_NULLABLE": "NO",
+      "COLUMN_DEFAULT": "NULL",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "__drizzle_migrations",
+      "COLUMN_NAME": "created_at",
+      "COLUMN_TYPE": "bigint",
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": "NULL",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "diaper_changes",
+      "COLUMN_NAME": "id",
+      "COLUMN_TYPE": "int",
+      "IS_NULLABLE": "NO",
+      "COLUMN_DEFAULT": "NULL",
+      "EXTRA": "auto_increment"
+    },
+    {
+      "TABLE_NAME": "diaper_changes",
+      "COLUMN_NAME": "child",
+      "COLUMN_TYPE": "enum('nica','nici')",
+      "IS_NULLABLE": "NO",
+      "COLUMN_DEFAULT": "NULL",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "diaper_changes",
+      "COLUMN_NAME": "type",
+      "COLUMN_TYPE": "enum('wet','dirty','both')",
+      "IS_NULLABLE": "NO",
+      "COLUMN_DEFAULT": "NULL",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "diaper_changes",
+      "COLUMN_NAME": "notes",
+      "COLUMN_TYPE": "text",
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": "NULL",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "diaper_changes",
+      "COLUMN_NAME": "loggedBy",
+      "COLUMN_TYPE": "int",
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": "NULL",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "diaper_changes",
+      "COLUMN_NAME": "changedAt",
+      "COLUMN_TYPE": "bigint",
+      "IS_NULLABLE": "NO",
+      "COLUMN_DEFAULT": "NULL",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "diaper_changes",
+      "COLUMN_NAME": "createdAt",
+      "COLUMN_TYPE": "bigint",
+      "IS_NULLABLE": "NO",
+      "COLUMN_DEFAULT": "NULL",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "feeding_sessions",
+      "COLUMN_NAME": "id",
+      "COLUMN_TYPE": "int",
+      "IS_NULLABLE": "NO",
+      "COLUMN_DEFAULT": "NULL",
+      "EXTRA": "auto_increment"
+    },
+    {
+      "TABLE_NAME": "feeding_sessions",
+      "COLUMN_NAME": "child",
+      "COLUMN_TYPE": "enum('nica','nici')",
+      "IS_NULLABLE": "NO",
+      "COLUMN_DEFAULT": "NULL",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "feeding_sessions",
+      "COLUMN_NAME": "leftStart",
+      "COLUMN_TYPE": "bigint",
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": "NULL",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "feeding_sessions",
+      "COLUMN_NAME": "leftEnd",
+      "COLUMN_TYPE": "bigint",
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": "NULL",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "feeding_sessions",
+      "COLUMN_NAME": "rightStart",
+      "COLUMN_TYPE": "bigint",
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": "NULL",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "feeding_sessions",
+      "COLUMN_NAME": "rightEnd",
+      "COLUMN_TYPE": "bigint",
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": "NULL",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "feeding_sessions",
+      "COLUMN_NAME": "bottleMl",
+      "COLUMN_TYPE": "int",
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": "NULL",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "feeding_sessions",
+      "COLUMN_NAME": "notes",
+      "COLUMN_TYPE": "text",
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": "NULL",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "feeding_sessions",
+      "COLUMN_NAME": "loggedBy",
+      "COLUMN_TYPE": "int",
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": "NULL",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "feeding_sessions",
+      "COLUMN_NAME": "createdAt",
+      "COLUMN_TYPE": "bigint",
+      "IS_NULLABLE": "NO",
+      "COLUMN_DEFAULT": "NULL",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "telegram_settings",
+      "COLUMN_NAME": "id",
+      "COLUMN_TYPE": "int",
+      "IS_NULLABLE": "NO",
+      "COLUMN_DEFAULT": "NULL",
+      "EXTRA": "auto_increment"
+    },
+    {
+      "TABLE_NAME": "telegram_settings",
+      "COLUMN_NAME": "botToken",
+      "COLUMN_TYPE": "varchar(256)",
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": "NULL",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "telegram_settings",
+      "COLUMN_NAME": "chatId",
+      "COLUMN_TYPE": "varchar(64)",
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": "NULL",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "telegram_settings",
+      "COLUMN_NAME": "enabled",
+      "COLUMN_TYPE": "tinyint(1)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_DEFAULT": "0",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "telegram_settings",
+      "COLUMN_NAME": "digestTime",
+      "COLUMN_TYPE": "varchar(5)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_DEFAULT": "21:00",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "telegram_settings",
+      "COLUMN_NAME": "timezoneOffset",
+      "COLUMN_TYPE": "int",
+      "IS_NULLABLE": "NO",
+      "COLUMN_DEFAULT": "0",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "telegram_settings",
+      "COLUMN_NAME": "updatedAt",
+      "COLUMN_TYPE": "timestamp",
+      "IS_NULLABLE": "NO",
+      "COLUMN_DEFAULT": "CURRENT_TIMESTAMP",
+      "EXTRA": "DEFAULT_GENERATED on update CURRENT_TIMESTAMP"
+    },
+    {
+      "TABLE_NAME": "users",
+      "COLUMN_NAME": "id",
+      "COLUMN_TYPE": "int",
+      "IS_NULLABLE": "NO",
+      "COLUMN_DEFAULT": "NULL",
+      "EXTRA": "auto_increment"
+    },
+    {
+      "TABLE_NAME": "users",
+      "COLUMN_NAME": "openId",
+      "COLUMN_TYPE": "varchar(64)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_DEFAULT": "NULL",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "users",
+      "COLUMN_NAME": "name",
+      "COLUMN_TYPE": "text",
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": "NULL",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "users",
+      "COLUMN_NAME": "email",
+      "COLUMN_TYPE": "varchar(320)",
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": "NULL",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "users",
+      "COLUMN_NAME": "loginMethod",
+      "COLUMN_TYPE": "varchar(64)",
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": "NULL",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "users",
+      "COLUMN_NAME": "role",
+      "COLUMN_TYPE": "enum('user','admin')",
+      "IS_NULLABLE": "NO",
+      "COLUMN_DEFAULT": "user",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "users",
+      "COLUMN_NAME": "createdAt",
+      "COLUMN_TYPE": "timestamp",
+      "IS_NULLABLE": "NO",
+      "COLUMN_DEFAULT": "CURRENT_TIMESTAMP",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "users",
+      "COLUMN_NAME": "updatedAt",
+      "COLUMN_TYPE": "timestamp",
+      "IS_NULLABLE": "NO",
+      "COLUMN_DEFAULT": "CURRENT_TIMESTAMP",
+      "EXTRA": "DEFAULT_GENERATED on update CURRENT_TIMESTAMP"
+    },
+    {
+      "TABLE_NAME": "users",
+      "COLUMN_NAME": "lastSignedIn",
+      "COLUMN_TYPE": "timestamp",
+      "IS_NULLABLE": "NO",
+      "COLUMN_DEFAULT": "CURRENT_TIMESTAMP",
+      "EXTRA": ""
+    }
+  ],
+  "messages": [],
+  "stdout": "TABLE_NAME\tCOLUMN_NAME\tCOLUMN_TYPE\tIS_NULLABLE\tCOLUMN_DEFAULT\tEXTRA\n__drizzle_migrations\tid\tbigint unsigned\tNO\tNULL\tauto_increment\n__drizzle_migrations\thash\ttext\tNO\tNULL\t\n__drizzle_migrations\tcreated_at\tbigint\tYES\tNULL\t\ndiaper_changes\tid\tint\tNO\tNULL\tauto_increment\ndiaper_changes\tchild\tenum('nica','nici')\tNO\tNULL\t\ndiaper_changes\ttype\tenum('wet','dirty','both')\tNO\tNULL\t\ndiaper_changes\tnotes\ttext\tYES\tNULL\t\ndiaper_changes\tloggedBy\tint\tYES\tNULL\t\ndiaper_changes\tchangedAt\tbigint\tNO\tNULL\t\ndiaper_changes\tcreatedAt\tbigint\tNO\tNULL\t\nfeeding_sessions\tid\tint\tNO\tNULL\tauto_increment\nfeeding_sessions\tchild\tenum('nica','nici')\tNO\tNULL\t\nfeeding_sessions\tleftStart\tbigint\tYES\tNULL\t\nfeeding_sessions\tleftEnd\tbigint\tYES\tNULL\t\nfeeding_sessions\trightStart\tbigint\tYES\tNULL\t\nfeeding_sessions\trightEnd\tbigint\tYES\tNULL\t\nfeeding_sessions\tbottleMl\tint\tYES\tNULL\t\nfeeding_sessions\tnotes\ttext\tYES\tNULL\t\nfeeding_sessions\tloggedBy\tint\tYES\tNULL\t\nfeeding_sessions\tcreatedAt\tbigint\tNO\tNULL\t\ntelegram_settings\tid\tint\tNO\tNULL\tauto_increment\ntelegram_settings\tbotToken\tvarchar(256)\tYES\tNULL\t\ntelegram_settings\tchatId\tvarchar(64)\tYES\tNULL\t\ntelegram_settings\tenabled\ttinyint(1)\tNO\t0\t\ntelegram_settings\tdigestTime\tvarchar(5)\tNO\t21:00\t\ntelegram_settings\ttimezoneOffset\tint\tNO\t0\t\ntelegram_settings\tupdatedAt\ttimestamp\tNO\tCURRENT_TIMESTAMP\tDEFAULT_GENERATED on update CURRENT_TIMESTAMP\nusers\tid\tint\tNO\tNULL\tauto_increment\nusers\topenId\tvarchar(64)\tNO\tNULL\t\nusers\tname\ttext\tYES\tNULL\t\nusers\temail\tvarchar(320)\tYES\tNULL\t\nusers\tloginMethod\tvarchar(64)\tYES\tNULL\t\nusers\trole\tenum('user','admin')\tNO\tuser\t\nusers\tcreatedAt\ttimestamp\tNO\tCURRENT_TIMESTAMP\t\nusers\tupdatedAt\ttimestamp\tNO\tCURRENT_TIMESTAMP\tDEFAULT_GENERATED on update CURRENT_TIMESTAMP\nusers\tlastSignedIn\ttimestamp\tNO\tCURRENT_TIMESTAMP\t\n",
+  "stderr": "",
+  "execution_time_ms": 774
+}

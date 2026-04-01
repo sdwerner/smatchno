@@ -6,7 +6,7 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
   LineChart, Line,
 } from "recharts";
-import { ChevronLeft, ChevronRight, Baby, Droplets, Clock, TrendingUp, Pencil, Trash2, X, Check, Settings, Plus } from "lucide-react";
+import { ChevronLeft, ChevronRight, Baby, Droplets, Clock, TrendingUp, Pencil, Trash2, X, Check, Settings, Plus, Pill } from "lucide-react";
 import { Link } from "wouter";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -740,6 +740,11 @@ export default function AnalyticsDashboard() {
             >
               <Plus size={20} />
             </button>
+            <Link href="/vitamind">
+              <button className="p-2 rounded-lg hover:bg-muted transition-colors text-amber-500" title="Vitamin D Calendar">
+                <Pill size={18} />
+              </button>
+            </Link>
             <Link href="/settings">
               <button className="p-2 rounded-lg hover:bg-muted transition-colors text-muted-foreground" title="Settings">
                 <Settings size={18} />

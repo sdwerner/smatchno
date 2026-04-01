@@ -1,0 +1,9 @@
+{
+  "query": "\nCREATE TABLE `vitamin_d_logs` (\n  `id` int AUTO_INCREMENT NOT NULL,\n  `child` enum('nica','nici') NOT NULL,\n  `givenAt` bigint NOT NULL,\n  `notes` text,\n  `loggedBy` int,\n  `createdAt` bigint NOT NULL,\n  CONSTRAINT `vitamin_d_logs_id` PRIMARY KEY(`id`)\n);\nALTER TABLE `vitamin_d_logs` ADD CONSTRAINT `vitamin_d_logs_loggedBy_users_id_fk` FOREIGN KEY (`loggedBy`) REFERENCES `users`(`id`) ON DELETE no action ON UPDATE no action;\n",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3tMhzpiFrNGot5K.f0e06cb36bdb --database GszrhNzrnJW82GciZqSSye --execute \nCREATE TABLE `vitamin_d_logs` (\n  `id` int AUTO_INCREMENT NOT NULL,\n  `child` enum('nica','nici') NOT NULL,\n  `givenAt` bigint NOT NULL,\n  `notes` text,\n  `loggedBy` int,\n  `createdAt` bigint NOT NULL,\n  CONSTRAINT `vitamin_d_logs_id` PRIMARY KEY(`id`)\n);\nALTER TABLE `vitamin_d_logs` ADD CONSTRAINT `vitamin_d_logs_loggedBy_users_id_fk` FOREIGN KEY (`loggedBy`) REFERENCES `users`(`id`) ON DELETE no action ON UPDATE no action;\n",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 489
+}

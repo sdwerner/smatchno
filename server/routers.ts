@@ -16,6 +16,9 @@ import {
   updateDiaperChange,
   getTelegramSettings,
   upsertTelegramSettings,
+  insertVitaminDLog,
+  getVitaminDLogsForRange,
+  hasVitaminDToday,
 } from "./db";
 
 const childSchema = z.enum(["nica", "nici"]);
@@ -311,6 +314,76 @@ export async function sendTelegramDigest(dateMs: number) {
   return { success: true };
 }
 
+// ─── Vitamin D Router ────────────────────────────────────────────────────────
+
+const vitaminDRouter = router({
+  /** Log that a child received their Vitamin D today. */
+  log: publicProcedure
+    .input(
+      z.object({
+        child: childSchema,
+        givenAt: z.number(), // UTC ms
+        notes: z.string().optional(),
+      })
+    )
+    .mutation(async ({ input }) => {
+      await insertVitaminDLog({
+        child: input.child,
+        givenAt: input.givenAt,
+        notes: input.notes ?? null,
+        loggedBy: null,
+        createdAt: Date.now(),
+      });
+      return { success: true };
+    }),
+
+  /**
+   * Returns a calendar map for both children over a date range.
+   * Each day key is "YYYY-MM-DD" (Vienna local date).
+   * Value: { nica: boolean, nici: boolean }
+   */
+  calendar: publicProcedure
+    .input(z.object({ startMs: z.number(), endMs: z.number() }))
+    .query(async ({ input }) => {
+      const VIENNA_OFFSET_MS = 60 * 60 * 1000; // UTC+1 base; DST handled client-side
+      const [nicaLogs, niciLogs] = await Promise.all([
+        getVitaminDLogsForRange("nica", input.startMs, input.endMs),
+        getVitaminDLogsForRange("nici", input.startMs, input.endMs),
+      ]);
+
+      // Build a set of "YYYY-MM-DD" strings for each child (Vienna date)
+      const toDateKey = (ms: number) => {
+        const viennaMs = ms + VIENNA_OFFSET_MS;
+        const d = new Date(viennaMs);
+        return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`;
+      };
+
+      const nicaDays = new Set(nicaLogs.map(l => toDateKey(l.givenAt)));
+      const niciDays = new Set(niciLogs.map(l => toDateKey(l.givenAt)));
+
+      // Build a map of all days in the range
+      const result: Record<string, { nica: boolean; nici: boolean }> = {};
+      const cursor = new Date(input.startMs + VIENNA_OFFSET_MS);
+      cursor.setUTCHours(0, 0, 0, 0);
+      const endDate = new Date(input.endMs + VIENNA_OFFSET_MS);
+
+      while (cursor <= endDate) {
+        const key = `${cursor.getUTCFullYear()}-${String(cursor.getUTCMonth() + 1).padStart(2, "0")}-${String(cursor.getUTCDate()).padStart(2, "0")}`;
+        result[key] = { nica: nicaDays.has(key), nici: niciDays.has(key) };
+        cursor.setUTCDate(cursor.getUTCDate() + 1);
+      }
+
+      return result;
+    }),
+
+  /** Check if a child has received Vitamin D today (Vienna time). */
+  checkToday: publicProcedure
+    .input(z.object({ child: childSchema, dayStartMs: z.number(), dayEndMs: z.number() }))
+    .query(async ({ input }) => {
+      return hasVitaminDToday(input.child, input.dayStartMs, input.dayEndMs);
+    }),
+});
+
 // ─── App Router ───────────────────────────────────────────────────────────────
 
 export const appRouter = router({
@@ -327,6 +400,7 @@ export const appRouter = router({
   diaper: diaperRouter,
   telegram: telegramRouter,
   analytics: analyticsRouter,
+  vitaminD: vitaminDRouter,
 });
 
 export type AppRouter = typeof appRouter;

@@ -78,3 +78,17 @@ export const telegramSettings = mysqlTable("telegram_settings", {
 
 export type TelegramSettings = typeof telegramSettings.$inferSelect;
 export type InsertTelegramSettings = typeof telegramSettings.$inferInsert;
+
+// Vitamin D logs — one entry per child per day
+export const vitaminDLogs = mysqlTable("vitamin_d_logs", {
+  id: int("id").autoincrement().primaryKey(),
+  child: mysqlEnum("child", ["nica", "nici"]).notNull(),
+  // UTC ms timestamp of when the vitamin was given
+  givenAt: bigint("givenAt", { mode: "number" }).notNull(),
+  notes: text("notes"),
+  loggedBy: int("loggedBy").references(() => users.id),
+  createdAt: bigint("createdAt", { mode: "number" }).notNull(),
+});
+
+export type VitaminDLog = typeof vitaminDLogs.$inferSelect;
+export type InsertVitaminDLog = typeof vitaminDLogs.$inferInsert;

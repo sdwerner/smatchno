@@ -9,6 +9,7 @@ import { ChildProvider } from "./contexts/ChildContext";
 import { TelegramProvider } from "./contexts/TelegramContext";
 import AnalyticsDashboard from "./pages/AnalyticsDashboard";
 import SettingsPage from "./pages/SettingsPage";
+import VitaminDCalendar from "./pages/VitaminDCalendar";
 
 /**
  * The app is now a Telegram-first analytics dashboard.
@@ -22,6 +23,7 @@ function Router() {
     <Switch>
       <Route path="/" component={AnalyticsDashboard} />
       <Route path="/settings" component={SettingsPage} />
+      <Route path="/vitamind" component={VitaminDCalendar} />
       <Route path="/404" component={NotFound} />
       <Route component={NotFound} />
     </Switch>

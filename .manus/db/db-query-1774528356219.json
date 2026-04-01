@@ -1,0 +1,143 @@
+{
+  "query": "\nSELECT TABLE_NAME, COLUMN_NAME, COLUMN_TYPE, IS_NULLABLE, COLUMN_DEFAULT\nFROM information_schema.COLUMNS\nWHERE TABLE_SCHEMA = DATABASE()\nAND TABLE_NAME IN ('telegram_settings', 'users', '__drizzle_migrations')\nORDER BY TABLE_NAME, ORDINAL_POSITION;\n",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3tMhzpiFrNGot5K.f0e06cb36bdb --database GszrhNzrnJW82GciZqSSye --execute \nSELECT TABLE_NAME, COLUMN_NAME, COLUMN_TYPE, IS_NULLABLE, COLUMN_DEFAULT\nFROM information_schema.COLUMNS\nWHERE TABLE_SCHEMA = DATABASE()\nAND TABLE_NAME IN ('telegram_settings', 'users', '__drizzle_migrations')\nORDER BY TABLE_NAME, ORDINAL_POSITION;\n",
+  "rows": [
+    {
+      "TABLE_NAME": "__drizzle_migrations",
+      "COLUMN_NAME": "id",
+      "COLUMN_TYPE": "bigint unsigned",
+      "IS_NULLABLE": "NO",
+      "COLUMN_DEFAULT": "NULL"
+    },
+    {
+      "TABLE_NAME": "__drizzle_migrations",
+      "COLUMN_NAME": "hash",
+      "COLUMN_TYPE": "text",
+      "IS_NULLABLE": "NO",
+      "COLUMN_DEFAULT": "NULL"
+    },
+    {
+      "TABLE_NAME": "__drizzle_migrations",
+      "COLUMN_NAME": "created_at",
+      "COLUMN_TYPE": "bigint",
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": "NULL"
+    },
+    {
+      "TABLE_NAME": "telegram_settings",
+      "COLUMN_NAME": "id",
+      "COLUMN_TYPE": "int",
+      "IS_NULLABLE": "NO",
+      "COLUMN_DEFAULT": "NULL"
+    },
+    {
+      "TABLE_NAME": "telegram_settings",
+      "COLUMN_NAME": "botToken",
+      "COLUMN_TYPE": "varchar(256)",
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": "NULL"
+    },
+    {
+      "TABLE_NAME": "telegram_settings",
+      "COLUMN_NAME": "chatId",
+      "COLUMN_TYPE": "varchar(64)",
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": "NULL"
+    },
+    {
+      "TABLE_NAME": "telegram_settings",
+      "COLUMN_NAME": "enabled",
+      "COLUMN_TYPE": "tinyint(1)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_DEFAULT": "0"
+    },
+    {
+      "TABLE_NAME": "telegram_settings",
+      "COLUMN_NAME": "digestTime",
+      "COLUMN_TYPE": "varchar(5)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_DEFAULT": "21:00"
+    },
+    {
+      "TABLE_NAME": "telegram_settings",
+      "COLUMN_NAME": "timezoneOffset",
+      "COLUMN_TYPE": "int",
+      "IS_NULLABLE": "NO",
+      "COLUMN_DEFAULT": "0"
+    },
+    {
+      "TABLE_NAME": "telegram_settings",
+      "COLUMN_NAME": "updatedAt",
+      "COLUMN_TYPE": "timestamp",
+      "IS_NULLABLE": "NO",
+      "COLUMN_DEFAULT": "CURRENT_TIMESTAMP"
+    },
+    {
+      "TABLE_NAME": "users",
+      "COLUMN_NAME": "id",
+      "COLUMN_TYPE": "int",
+      "IS_NULLABLE": "NO",
+      "COLUMN_DEFAULT": "NULL"
+    },
+    {
+      "TABLE_NAME": "users",
+      "COLUMN_NAME": "openId",
+      "COLUMN_TYPE": "varchar(64)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_DEFAULT": "NULL"
+    },
+    {
+      "TABLE_NAME": "users",
+      "COLUMN_NAME": "name",
+      "COLUMN_TYPE": "text",
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": "NULL"
+    },
+    {
+      "TABLE_NAME": "users",
+      "COLUMN_NAME": "email",
+      "COLUMN_TYPE": "varchar(320)",
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": "NULL"
+    },
+    {
+      "TABLE_NAME": "users",
+      "COLUMN_NAME": "loginMethod",
+      "COLUMN_TYPE": "varchar(64)",
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": "NULL"
+    },
+    {
+      "TABLE_NAME": "users",
+      "COLUMN_NAME": "role",
+      "COLUMN_TYPE": "enum('user','admin')",
+      "IS_NULLABLE": "NO",
+      "COLUMN_DEFAULT": "user"
+    },
+    {
+      "TABLE_NAME": "users",
+      "COLUMN_NAME": "createdAt",
+      "COLUMN_TYPE": "timestamp",
+      "IS_NULLABLE": "NO",
+      "COLUMN_DEFAULT": "CURRENT_TIMESTAMP"
+    },
+    {
+      "TABLE_NAME": "users",
+      "COLUMN_NAME": "updatedAt",
+      "COLUMN_TYPE": "timestamp",
+      "IS_NULLABLE": "NO",
+      "COLUMN_DEFAULT": "CURRENT_TIMESTAMP"
+    },
+    {
+      "TABLE_NAME": "users",
+      "COLUMN_NAME": "lastSignedIn",
+      "COLUMN_TYPE": "timestamp",
+      "IS_NULLABLE": "NO",
+      "COLUMN_DEFAULT": "CURRENT_TIMESTAMP"
+    }
+  ],
+  "messages": [],
+  "stdout": "TABLE_NAME\tCOLUMN_NAME\tCOLUMN_TYPE\tIS_NULLABLE\tCOLUMN_DEFAULT\n__drizzle_migrations\tid\tbigint unsigned\tNO\tNULL\n__drizzle_migrations\thash\ttext\tNO\tNULL\n__drizzle_migrations\tcreated_at\tbigint\tYES\tNULL\ntelegram_settings\tid\tint\tNO\tNULL\ntelegram_settings\tbotToken\tvarchar(256)\tYES\tNULL\ntelegram_settings\tchatId\tvarchar(64)\tYES\tNULL\ntelegram_settings\tenabled\ttinyint(1)\tNO\t0\ntelegram_settings\tdigestTime\tvarchar(5)\tNO\t21:00\ntelegram_settings\ttimezoneOffset\tint\tNO\t0\ntelegram_settings\tupdatedAt\ttimestamp\tNO\tCURRENT_TIMESTAMP\nusers\tid\tint\tNO\tNULL\nusers\topenId\tvarchar(64)\tNO\tNULL\nusers\tname\ttext\tYES\tNULL\nusers\temail\tvarchar(320)\tYES\tNULL\nusers\tloginMethod\tvarchar(64)\tYES\tNULL\nusers\trole\tenum('user','admin')\tNO\tuser\nusers\tcreatedAt\ttimestamp\tNO\tCURRENT_TIMESTAMP\nusers\tupdatedAt\ttimestamp\tNO\tCURRENT_TIMESTAMP\nusers\tlastSignedIn\ttimestamp\tNO\tCURRENT_TIMESTAMP\n",
+  "stderr": "",
+  "execution_time_ms": 60
+}

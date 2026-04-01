@@ -515,6 +515,25 @@ async function handleLog(args: string[], chatId: number, lang: Lang, fromVoice =
         i++;
         continue;
       }
+    } else if (token === "vitd" || token === "vitamind" || token === "vitamin" || token === "vit") {
+      // Vitamin D log — handle immediately and return
+      const isHistoricalVitD = argOffset === 1;
+      const vitDDate = new Date(baseDate);
+      vitDDate.setHours(9, 0, 0, 0); // default to 9:00 Vienna time
+      const givenAt = isHistoricalVitD ? fromVienna(vitDDate) : Date.now();
+      const vitDDateLabel = isHistoricalVitD ? ` (${fmtVienna(givenAt, "dd.MM.yyyy")})` : "";
+      const voiceTagVitD = fromVoice ? " 🎙" : "";
+      const { insertVitaminDLog } = await import("./db");
+      for (const child of children) {
+        await insertVitaminDLog({ child, givenAt, notes: "via bot", loggedBy: null, createdAt: Date.now() });
+      }
+      const childDisplayVitD = children.length > 1 ? "Nica & Nici" : (children[0] === "nica" ? "Nica" : "Nici");
+      const vitDDone: Record<Lang, string> = {
+        en: `✅ 💊 Vitamin D logged for <b>${childDisplayVitD}</b>${vitDDateLabel}!${voiceTagVitD}`,
+        de: `✅ 💊 Vitamin D für <b>${childDisplayVitD}</b>${vitDDateLabel} eingetragen!${voiceTagVitD}`,
+        uk: `✅ 💊 Вітамін D для <b>${childDisplayVitD}</b>${vitDDateLabel} записано!${voiceTagVitD}`,
+      };
+      return sendMessage(chatId, vitDDone[lang]);
     } else if (SIDE_DIAPER.has(token)) {
       isDiaper = true;
       const typeToken = (args[i + 1] || "").toLowerCase();
@@ -818,6 +837,9 @@ async function handleHelp(chatId: number, lang: Lang) {
 <b>Diaper:</b>
 <code>/log nica diaper wet</code> · <code>dirty</code> · <code>both</code>
 
+<b>Vitamin D:</b>
+<code>/log nica vitd</code> · <code>/log nici vitd</code> · <code>/log both vitd</code>
+
 <b>Analytics:</b>
 <code>/today</code> — today's summary
 <code>/week</code> — last 7 days
@@ -850,6 +872,9 @@ async function handleHelp(chatId: number, lang: Lang) {
 <b>Windel:</b>
 <code>/log nica windel nass</code> · <code>schmutzig</code> · <code>beides</code>
 
+<b>Vitamin D:</b>
+<code>/log nica vitd</code> · <code>/log nici vitd</code> · <code>/log beide vitd</code>
+
 <b>Analyse:</b>
 <code>/today</code> — heutige Übersicht
 <code>/week</code> — letzte 7 Tage
@@ -881,6 +906,9 @@ async function handleHelp(chatId: number, lang: Lang) {
 
 <b>Підгузок:</b>
 <code>/log nica підгузок мокра</code> · <code>брудна</code> · <code>обидва</code>
+
+<b>Вітамін D:</b>
+<code>/log nica vitd</code> · <code>/log nici vitd</code> · <code>/log обидві vitd</code>
 
 <b>Аналітика:</b>
 <code>/today</code> — зведення за сьогодні

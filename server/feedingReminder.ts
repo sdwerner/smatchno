@@ -1,6 +1,4 @@
-import { getDb } from "./db";
-import { feedingSessions } from "../drizzle/schema";
-import { desc, eq } from "drizzle-orm";
+import { getRecentFeedingSessions } from "./db";
 import { sendMessage } from "./telegramBot";
 import { format } from "date-fns";
 
@@ -22,9 +20,6 @@ function formatMs(ms: number): string {
 }
 
 async function checkFeedings() {
-  const db = await getDb();
-  if (!db) return;
-
   const chatId = process.env.TELEGRAM_CHAT_ID;
   if (!chatId) return;
 
@@ -32,12 +27,8 @@ async function checkFeedings() {
 
   for (const child of ["nica", "nici"] as const) {
     try {
-      const rows = await db
-        .select()
-        .from(feedingSessions)
-        .where(eq(feedingSessions.child, child))
-        .orderBy(desc(feedingSessions.createdAt))
-        .limit(1);
+      // Use the withRetry-wrapped helper instead of raw getDb() to survive ECONNRESET
+      const rows = await getRecentFeedingSessions(child, 1);
 
       if (rows.length === 0) continue;
 

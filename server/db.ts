@@ -18,9 +18,13 @@ export async function getDb() {
         connectionLimit: 5,
         queueLimit: 0,
         enableKeepAlive: true,
-        keepAliveInitialDelay: 10000,
+        keepAliveInitialDelay: 0,       // send first keepalive immediately
+        connectTimeout: 10000,
+        // Drizzle/mysql2 pool will automatically evict stale connections
+        // The withRetry wrapper handles any remaining ECONNRESET at query time
       });
       _db = drizzle(_pool);
+      startPing(); // keep the pool alive with periodic SELECT 1
       console.log("[Database] Connection pool created");
     } catch (error) {
       console.warn("[Database] Failed to connect:", error);
@@ -31,10 +35,28 @@ export async function getDb() {
   return _db;
 }
 
+// Periodic keep-alive ping: runs SELECT 1 every 4 minutes to prevent
+// the MySQL server from closing idle connections (ECONNRESET on next query).
+let _pingInterval: ReturnType<typeof setInterval> | null = null;
+
+function startPing() {
+  if (_pingInterval) return; // already running
+  _pingInterval = setInterval(async () => {
+    if (!_pool) return;
+    _pool.query("SELECT 1", (err) => {
+      if (err) {
+        console.warn("[Database] Keep-alive ping failed:", err.message);
+        // Don't reset here — withRetry will handle it on the next real query
+      }
+    });
+  }, 4 * 60 * 1000); // every 4 minutes
+}
+
 // Reset the db handle so the next call to getDb() creates a fresh pool.
 // Called automatically when a query fails with a connection error.
 export function resetDb() {
   console.warn("[Database] Resetting connection pool due to error");
+  if (_pingInterval) { clearInterval(_pingInterval); _pingInterval = null; }
   try { _pool?.end(); } catch { /* ignore */ }
   _db = null;
   _pool = null;

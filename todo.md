@@ -216,3 +216,9 @@
 - [x] Add Pill icon link to /vitamind in dashboard header
 - [x] Add /vitamind route in App.tsx
 - [x] 66/66 tests passing, TypeScript clean
+
+## Backend Bug Fixes
+
+- [x] Fix feeding reminders not being sent: feedingReminder.ts now uses getRecentFeedingSessions() (withRetry-wrapped) instead of raw getDb() query
+- [x] Fix ECONNRESET errors: added periodic SELECT 1 keep-alive ping every 4 minutes to prevent MySQL from closing idle connections
+- [x] Improved DB pool: keepAliveInitialDelay=0, connectTimeout=10000, ping clears on resetDb()

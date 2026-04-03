@@ -27,10 +27,14 @@ function calcFeedingStats(sessions: FeedingSession[]) {
   let bottleCount = 0;
   let bottleMlTotal = 0;
   for (const s of sessions) {
-    if (s.leftStart && s.leftEnd) totalMs += s.leftEnd - s.leftStart;
-    if (s.rightStart && s.rightEnd) totalMs += s.rightEnd - s.rightStart;
+    // For quick-log entries (start===end), duration is 0 — don't add to total
+    const leftDur = (s.leftStart && s.leftEnd && s.leftStart !== s.leftEnd) ? s.leftEnd - s.leftStart : 0;
+    const rightDur = (s.rightStart && s.rightEnd && s.rightStart !== s.rightEnd) ? s.rightEnd - s.rightStart : 0;
+    totalMs += leftDur + rightDur;
     if (s.bottleMl) { bottleCount++; bottleMlTotal += s.bottleMl; }
-    if (!lastFeedTime || s.createdAt > lastFeedTime) lastFeedTime = s.createdAt;
+    // Use the actual feed start time (leftStart or rightStart) as the reference, falling back to createdAt
+    const feedTime = s.leftStart ?? s.rightStart ?? s.createdAt;
+    if (!lastFeedTime || feedTime > lastFeedTime) lastFeedTime = feedTime;
   }
   return { totalMs, count: sessions.length, lastFeedTime, bottleCount, bottleMlTotal };
 }
@@ -273,6 +277,15 @@ function ChildPanel({
   const lastStr = stats.lastFeedTime
     ? format(new Date(stats.lastFeedTime), "HH:mm")
     : "—";
+  const lastAgoStr = stats.lastFeedTime
+    ? (() => {
+        const diffMin = Math.floor((Date.now() - stats.lastFeedTime) / 60000);
+        if (diffMin < 60) return `${diffMin}m ago`;
+        const h = Math.floor(diffMin / 60);
+        const m = diffMin % 60;
+        return m > 0 ? `${h}h ${m}m ago` : `${h}h ago`;
+      })()
+    : undefined;
 
   const [editFeeding, setEditFeeding] = useState<FeedingSession | null>(null);
   const [editDiaper, setEditDiaper] = useState<DiaperChange | null>(null);
@@ -317,6 +330,7 @@ function ChildPanel({
           icon={<Clock size={18} />}
           label="Last fed"
           value={lastStr}
+          sub={lastAgoStr}
           color={cn("bg-blue-50 text-blue-900 dark:bg-blue-900/20 dark:text-blue-200")}
         />
         <StatCard
@@ -350,12 +364,16 @@ function ChildPanel({
                 <span className="flex gap-1.5 flex-wrap flex-1 min-w-0">
                   {s.leftStart && s.leftEnd && (
                     <span className="text-purple-700 dark:text-purple-300">
-                      👈 {formatMs(s.leftEnd - s.leftStart)}
+                      {s.leftStart === s.leftEnd
+                        ? `⚡ Left`
+                        : `👈 ${formatMs(s.leftEnd - s.leftStart)}`}
                     </span>
                   )}
                   {s.rightStart && s.rightEnd && (
                     <span className="text-blue-700 dark:text-blue-300">
-                      👉 {formatMs(s.rightEnd - s.rightStart)}
+                      {s.rightStart === s.rightEnd
+                        ? `⚡ Right`
+                        : `👉 ${formatMs(s.rightEnd - s.rightStart)}`}
                     </span>
                   )}
                   {s.bottleMl && (

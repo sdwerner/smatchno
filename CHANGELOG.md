@@ -1,5 +1,17 @@
 # Changelog
 
+## v1.6.0 — Quick-log mode
+
+- Quick-log: `/log nica left` (no time range) records the current time as a point-in-time feed
+- Dashboard: feed count is the primary metric; quick-log entries shown as ⚡ Left / ⚡ Right
+- Dashboard: "Last fed" stat card now shows "X ago" sub-label
+- Voice: quick-log phrases work naturally ("log nica left" without a time)
+- Vitamin D tracking: `/log nica vitd` with 2-hour reminders after noon
+- Vitamin D calendar in dashboard (green tick / red cross per day)
+- DB keep-alive ping every 4 minutes to prevent ECONNRESET
+- Feeding reminder fix: now uses withRetry for reliable delivery
+- /help updated in EN/DE/UK with quick-log examples
+
 ## v1.5.0
 - Added /version command: shows current version, uptime, and build date
 - Added voice message support: send a voice note to the bot and it transcribes and executes the command

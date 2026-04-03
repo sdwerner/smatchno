@@ -418,9 +418,9 @@ function parseTimeRange(rangeStr: string, now: Date): { start: number; end: numb
 async function handleLog(args: string[], chatId: number, lang: Lang, fromVoice = false) {
   if (args.length < 2) {
     const usage: Record<Lang, string> = {
-      en: `📝 <b>Usage:</b>\n<code>/log nica left 14:00-14:10 right 14:10-14:20</code>\n<code>/log 19.03 nici right 14:00-14:15</code> (backfill with date)\n<code>/log nici both 14:00-15:00</code> (both breasts, split 50/50)\n<code>/log both right 14:00-15:00</code> (both babies)\n<code>/log nica own 80</code> (own milk) · <code>/log nica other 80</code> (formula)\n<code>/log nici right 14:00-15:00 own 15</code> (breast + bottle)\n<code>/log nici diaper wet</code>\n\n💡 Date prefix (DD.MM or DD.MM.YYYY) is optional — defaults to today.`,
-      de: `📝 <b>Verwendung:</b>\n<code>/log nica links 14:00-14:10 rechts 14:10-14:20</code>\n<code>/log 19.03 nici rechts 14:00-14:15</code> (Datum angeben)\n<code>/log nici beide 14:00-15:00</code> (beide Brüste, 50/50)\n<code>/log beide rechts 14:00-15:00</code> (beide Babys)\n<code>/log nica eigen 80</code> (eigene Milch) · <code>/log nica andere 80</code> (Fremde)\n<code>/log nici windel nass</code>\n\n💡 Datum (TT.MM oder TT.MM.JJJJ) ist optional — Standard: heute.`,
-      uk: `📝 <b>Використання:</b>\n<code>/log nica ліво 14:00-14:10 право 14:10-14:20</code>\n<code>/log 19.03 nici право 14:00-14:15</code> (з датою)\n<code>/log nici обидві 14:00-15:00</code> (обидві груди, 50/50)\n<code>/log обидві право 14:00-15:00</code> (обидві дитини)\n<code>/log nica своє 80</code> (своє молоко) · <code>/log nica інше 80</code> (суміш)\n<code>/log nici підгузок мокра</code>\n\n💡 Дата (ДД.ММ або ДД.ММ.РРРР) необов'язкова — за замовчуванням сьогодні.`,
+      en: `📝 <b>Usage:</b>\n🕒 <b>Quick-log</b> (time = now): <code>/log nica left</code> · <code>/log nici right</code> · <code>/log both left</code>\n🕐 <b>With time range</b>: <code>/log nica left 14:00-14:10 right 14:10-14:20</code>\n<code>/log 19.03 nici right 14:00-14:15</code> (backfill with date)\n<code>/log nici both 14:00-15:00</code> (both breasts, split 50/50)\n<code>/log nica own 80</code> (own milk) · <code>/log nica other 80</code> (formula)\n<code>/log nici right 14:00-15:00 own 15</code> (breast + bottle)\n<code>/log nici diaper wet</code>\n\n💡 Date prefix (DD.MM or DD.MM.YYYY) is optional — defaults to today.`,
+      de: `📝 <b>Verwendung:</b>\n🕒 <b>Schnell-Log</b> (Zeit = jetzt): <code>/log nica links</code> · <code>/log nici rechts</code> · <code>/log beide links</code>\n🕐 <b>Mit Zeitbereich</b>: <code>/log nica links 14:00-14:10 rechts 14:10-14:20</code>\n<code>/log 19.03 nici rechts 14:00-14:15</code> (Datum angeben)\n<code>/log nici beide 14:00-15:00</code> (beide Brüste, 50/50)\n<code>/log nica eigen 80</code> (eigene Milch) · <code>/log nica andere 80</code> (Fremde)\n<code>/log nici windel nass</code>\n\n💡 Datum (TT.MM oder TT.MM.JJJJ) ist optional — Standard: heute.`,
+      uk: `📝 <b>Використання:</b>\n🕒 <b>Швидкий запис</b> (час = зараз): <code>/log nica ліво</code> · <code>/log nici право</code> · <code>/log обидві ліво</code>\n🕐 <b>З часовим діапазоном</b>: <code>/log nica ліво 14:00-14:10 право 14:10-14:20</code>\n<code>/log 19.03 nici право 14:00-14:15</code> (з датою)\n<code>/log nici обидві 14:00-15:00</code> (обидві груди, 50/50)\n<code>/log nica своє 80</code> (своє молоко) · <code>/log nica інше 80</code> (суміш)\n<code>/log nici підгузок мокра</code>\n\n💡 Дата (ДД.ММ або ДД.ММ.РРРР) необов'язкова — за замовчуванням сьогодні.`,
     };
     return sendMessage(chatId, usage[lang]);
   }
@@ -442,6 +442,14 @@ async function handleLog(args: string[], chatId: number, lang: Lang, fromVoice =
   if (!db) return sendMessage(chatId, t("dbUnavailable", lang));
 
   const now = baseDate;
+  // nowMs: the UTC timestamp to use for quick-log (point-in-time) entries.
+  // For historical entries (date prefix given) we use noon Vienna time;
+  // for real-time entries we use the actual current time.
+  const isHistoricalEarly = argOffset === 1;
+  const earlyEntryDate = new Date(baseDate);
+  earlyEntryDate.setHours(12, 0, 0, 0);
+  const nowMs = isHistoricalEarly ? fromVienna(earlyEntryDate) : Date.now();
+
   let leftStart: number | null = null;
   let leftEnd: number | null = null;
   let rightStart: number | null = null;
@@ -458,31 +466,41 @@ async function handleLog(args: string[], chatId: number, lang: Lang, fromVoice =
 
     if (SIDE_LEFT.has(token)) {
       const range = args[i + 1];
-      if (range) {
-        const parsed = parseTimeRange(range, now);
-        if (parsed) { leftStart = parsed.start; leftEnd = parsed.end; i += 2; continue; }
+      const parsed = range ? parseTimeRange(range, now) : null;
+      if (parsed) {
+        leftStart = parsed.start; leftEnd = parsed.end; i += 2;
+      } else {
+        // Quick-log: no time range → point-in-time (start = now, end = start)
+        leftStart = nowMs; leftEnd = nowMs; i++;
       }
+      continue;
     } else if (SIDE_RIGHT.has(token)) {
       const range = args[i + 1];
-      if (range) {
-        const parsed = parseTimeRange(range, now);
-        if (parsed) { rightStart = parsed.start; rightEnd = parsed.end; i += 2; continue; }
+      const parsed = range ? parseTimeRange(range, now) : null;
+      if (parsed) {
+        rightStart = parsed.start; rightEnd = parsed.end; i += 2;
+      } else {
+        rightStart = nowMs; rightEnd = nowMs; i++;
       }
+      continue;
     } else if (SIDE_BOTH_BREAST.has(token)) {
-      // Both breasts: parse total range, split 50/50
+      // Both breasts: parse total range, split 50/50 — or quick-log both at once
       const range = args[i + 1];
-      if (range) {
-        const parsed = parseTimeRange(range, now);
-        if (parsed) {
-          const half = Math.floor((parsed.end - parsed.start) / 2);
-          leftStart = parsed.start;
-          leftEnd = parsed.start + half;
-          rightStart = parsed.start + half;
-          rightEnd = parsed.end;
-          i += 2;
-          continue;
-        }
+      const parsed = range ? parseTimeRange(range, now) : null;
+      if (parsed) {
+        const half = Math.floor((parsed.end - parsed.start) / 2);
+        leftStart = parsed.start;
+        leftEnd = parsed.start + half;
+        rightStart = parsed.start + half;
+        rightEnd = parsed.end;
+        i += 2;
+      } else {
+        // Quick-log both breasts at current time
+        leftStart = nowMs; leftEnd = nowMs;
+        rightStart = nowMs; rightEnd = nowMs;
+        i++;
       }
+      continue;
     } else if (SIDE_OWN.has(token)) {
       const nextToken = args[i + 1] || "";
       const isTimeRange = /^\d{1,2}:\d{2}/.test(nextToken); // e.g. 19:25-19:30
@@ -573,12 +591,12 @@ async function handleLog(args: string[], chatId: number, lang: Lang, fromVoice =
     return sendMessage(chatId, doneLabels[lang]);
   }
 
-  // Handle feeding
+  // Handle feeding — also allow quick-log (no time range, just side keyword)
   if (!leftStart && !rightStart && bottleMl === null) {
     const errLabels: Record<Lang, string> = {
-      en: `❌ Could not parse. Example: <code>/log nica left 14:00-14:10</code>`,
-      de: `❌ Konnte nicht lesen. Beispiel: <code>/log nica links 14:00-14:10</code>`,
-      uk: `❌ Не вдалося розпізнати. Приклад: <code>/log nica ліво 14:00-14:10</code>`,
+      en: `❌ Could not parse. Example: <code>/log nica left</code> or <code>/log nica left 14:00-14:10</code>`,
+      de: `❌ Konnte nicht lesen. Beispiel: <code>/log nica links</code> oder <code>/log nica links 14:00-14:10</code>`,
+      uk: `❌ Не вдалося розпізнати. Приклад: <code>/log nica ліво</code> або <code>/log nica ліво 14:00-14:10</code>`,
     };
     return sendMessage(chatId, errLabels[lang]);
   }
@@ -586,8 +604,21 @@ async function handleLog(args: string[], chatId: number, lang: Lang, fromVoice =
   const actualBottleMl = bottleMl === -1 ? null : bottleMl;
   const confirmParts: string[] = [];
 
-  if (leftStart && leftEnd) confirmParts.push(`👈 Left: <b>${formatMs(leftEnd - leftStart)}</b>`);
-  if (rightStart && rightEnd) confirmParts.push(`👉 Right: <b>${formatMs(rightEnd - rightStart)}</b>`);
+  // For quick-log (start === end, zero duration), show the time instead of "0m"
+  const isQuickLeft = leftStart !== null && leftStart === leftEnd;
+  const isQuickRight = rightStart !== null && rightStart === rightEnd;
+  if (leftStart && leftEnd) {
+    const label = isQuickLeft
+      ? `👈 Left: <b>${fmtVienna(leftStart, "HH:mm")}</b>`
+      : `👈 Left: <b>${formatMs(leftEnd - leftStart)}</b>`;
+    confirmParts.push(label);
+  }
+  if (rightStart && rightEnd) {
+    const label = isQuickRight
+      ? `👉 Right: <b>${fmtVienna(rightStart, "HH:mm")}</b>`
+      : `👉 Right: <b>${formatMs(rightEnd - rightStart)}</b>`;
+    confirmParts.push(label);
+  }
   if (bottleMl && bottleMl > 0) {
     const bottleIcon = bottleType === "own" ? "🍼👩" : bottleType === "other" ? "🍼🥛" : "🍼";
     const bottleLabel = bottleType === "own" ? "Own milk" : bottleType === "other" ? "Formula" : "Bottle";
@@ -821,7 +852,12 @@ async function handleHelp(chatId: number, lang: Lang) {
   const texts: Record<Lang, string> = {
     en: `🍼 <b>Baby Tracker — Commands</b>
 
-<b>Breast feeding:</b>
+<b>⚡ Quick-log</b> (records current time instantly):
+<code>/log nica left</code> · <code>/log nici right</code> · <code>/log both left</code>
+<code>/log nica bottle</code> · <code>/log nica own 65</code> (with ml)
+<code>/log nica diaper wet</code> · <code>/log both vitd</code>
+
+<b>Breast feeding with time range:</b>
 <code>/log nica left 14:00-14:10 right 14:10-14:20</code>
 <code>/log 19.03 nici right 14:00-14:15</code> — backfill with DD.MM date
 <code>/log nici both 14:00-15:00</code> — both breasts, time split 50/50
@@ -856,7 +892,12 @@ async function handleHelp(chatId: number, lang: Lang) {
 
     de: `🍼 <b>Baby Tracker — Befehle</b>
 
-<b>Stillen:</b>
+<b>⚡ Schnell-Log</b> (erfasst aktuelle Uhrzeit sofort):
+<code>/log nica links</code> · <code>/log nici rechts</code> · <code>/log beide links</code>
+<code>/log nica flasche</code> · <code>/log nica eigen 65</code> (mit ml)
+<code>/log nica windel nass</code> · <code>/log beide vitd</code>
+
+<b>Stillen mit Zeitbereich:</b>
 <code>/log nica links 14:00-14:10 rechts 14:10-14:20</code>
 <code>/log 19.03 nici rechts 14:00-14:15</code> — Datum angeben (TT.MM)
 <code>/log nici beide 14:00-15:00</code> — beide Brüste, 50/50 geteilt
@@ -891,7 +932,12 @@ async function handleHelp(chatId: number, lang: Lang) {
 
     uk: `🍼 <b>Baby Tracker — Команди</b>
 
-<b>Грудне годування:</b>
+<b>⚡ Швидкий запис</b> (записує поточний час миттєво):
+<code>/log nica ліво</code> · <code>/log nici право</code> · <code>/log обидві ліво</code>
+<code>/log nica пляшечка</code> · <code>/log nica своє 65</code> (з мл)
+<code>/log nica підгузок мокра</code> · <code>/log обидві vitd</code>
+
+<b>Грудне годування з часовим діапазоном:</b>
 <code>/log nica ліво 14:00-14:10 право 14:10-14:20</code>
 <code>/log 19.03 nici право 14:00-14:15</code> — з датою (ДД.ММ)
 <code>/log nici обидві 14:00-15:00</code> — обидві груди, 50/50

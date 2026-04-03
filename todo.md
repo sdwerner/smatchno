@@ -222,3 +222,16 @@
 - [x] Fix feeding reminders not being sent: feedingReminder.ts now uses getRecentFeedingSessions() (withRetry-wrapped) instead of raw getDb() query
 - [x] Fix ECONNRESET errors: added periodic SELECT 1 keep-alive ping every 4 minutes to prevent MySQL from closing idle connections
 - [x] Improved DB pool: keepAliveInitialDelay=0, connectTimeout=10000, ping clears on resetDb()
+
+## Quick-Log Mode (Point-in-Time)
+
+- [x] Bot: accept /log nica left (no time range) → use Date.now() as startTime, duration=0
+- [x] Bot: accept /log nica bottle own 65 (no time range) → point-in-time
+- [x] Bot: accept /log both right → log for both children at current time
+- [x] Voice: quick-log phrases work naturally (normalizer already handles, no changes needed)
+- [x] Dashboard: feed COUNT is primary metric; quick-log entries shown as ⚡ Left / ⚡ Right
+- [x] Dashboard: "Last fed" stat card now shows "X ago" sub-label
+- [x] /help: document quick-log syntax in EN/DE/UK
+- [x] CHANGELOG: v1.6.0 entry added
+- [x] package.json: bumped to 1.6.0
+- [x] 66/66 tests passing, TypeScript clean

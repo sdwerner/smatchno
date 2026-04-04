@@ -1,5 +1,5 @@
 import axios from "axios";
-import { getDb, deleteLastFeedingSession, deleteLastDiaperChange } from "./db";
+import { getDb, deleteLastFeedingSession, deleteLastDiaperChange, insertFeedingSession, insertDiaperChange, getLastFeedingSession, getLastDiaperChange, getFeedingSessionsForDay, getDiaperChangesForDay } from "./db";
 import { feedingSessions, diaperChanges } from "../drizzle/schema";
 import { and, gte, lte, desc, eq } from "drizzle-orm";
 import { format, startOfDay, endOfDay, subDays } from "date-fns";
@@ -185,9 +185,6 @@ function childName(raw: string): "nica" | "nici" | null {
 // ─── Daily summary builder ───────────────────────────────────────────────────
 
 export async function buildDailySummary(dateMs: number, lang: Lang = "en"): Promise<string> {
-  const db = await getDb();
-  if (!db) return t("dbUnavailable", lang);
-
   const dayStart = viennaDayStart(dateMs);
   const dayEnd = viennaDayEnd(dateMs);
   const dateLabel = fmtVienna(dateMs, "dd.MM.yyyy");
@@ -201,27 +198,9 @@ export async function buildDailySummary(dateMs: number, lang: Lang = "en"): Prom
   let msg = `${headers[lang]}\n\n`;
 
   for (const child of ["nica", "nici"] as const) {
-    const feedings = await db
-      .select()
-      .from(feedingSessions)
-      .where(
-        and(
-          eq(feedingSessions.child, child),
-          gte(feedingSessions.createdAt, dayStart),
-          lte(feedingSessions.createdAt, dayEnd)
-        )
-      );
-
-    const diapers = await db
-      .select()
-      .from(diaperChanges)
-      .where(
-        and(
-          eq(diaperChanges.child, child),
-          gte(diaperChanges.changedAt, dayStart),
-          lte(diaperChanges.changedAt, dayEnd)
-        )
-      );
+    // Use withRetry-wrapped helpers to survive ECONNRESET
+    const feedings = await getFeedingSessionsForDay(child, dayStart, dayEnd);
+    const diapers = await getDiaperChangesForDay(child, dayStart, dayEnd);
 
     let totalMs = 0;
     let lastFeedTime: number | null = null;
@@ -269,9 +248,6 @@ export async function buildDailySummary(dateMs: number, lang: Lang = "en"): Prom
 // ─── Weekly summary builder ──────────────────────────────────────────────────
 
 async function buildWeeklySummary(lang: Lang): Promise<string> {
-  const db = await getDb();
-  if (!db) return t("dbUnavailable", lang);
-
   const now = Date.now();
   const weekStart = viennaDayStart(subDays(new Date(now), 6).getTime());
   const weekEnd = viennaDayEnd(now);
@@ -285,27 +261,9 @@ async function buildWeeklySummary(lang: Lang): Promise<string> {
   let msg = `${headers[lang]}\n\n`;
 
   for (const child of ["nica", "nici"] as const) {
-    const feedings = await db
-      .select()
-      .from(feedingSessions)
-      .where(
-        and(
-          eq(feedingSessions.child, child),
-          gte(feedingSessions.createdAt, weekStart),
-          lte(feedingSessions.createdAt, weekEnd)
-        )
-      );
-
-    const diapers = await db
-      .select()
-      .from(diaperChanges)
-      .where(
-        and(
-          eq(diaperChanges.child, child),
-          gte(diaperChanges.changedAt, weekStart),
-          lte(diaperChanges.changedAt, weekEnd)
-        )
-      );
+    // Use withRetry-wrapped helpers to survive ECONNRESET
+    const feedings = await getFeedingSessionsForDay(child, weekStart, weekEnd);
+    const diapers = await getDiaperChangesForDay(child, weekStart, weekEnd);
 
     let totalMs = 0;
     let bottleTotalMl = 0;
@@ -580,7 +538,7 @@ async function handleLog(args: string[], chatId: number, lang: Lang, fromVoice =
       uk: { wet: "мокра", dirty: "брудна", both: "обидва" },
     };
     for (const child of children) {
-      await db.insert(diaperChanges).values({ child, type, notes: "via bot", loggedBy: null, changedAt: createdAt, createdAt });
+      await insertDiaperChange({ child, type, notes: "via bot", loggedBy: null, changedAt: createdAt, createdAt });
     }
     const childDisplay = children.length > 1 ? "Nica & Nici" : (children[0] === "nica" ? "Nica" : "Nici");
     const doneLabels: Record<Lang, string> = {
@@ -626,9 +584,9 @@ async function handleLog(args: string[], chatId: number, lang: Lang, fromVoice =
   }
   if (bottleMl === -1) confirmParts.push(`🍼 Bottle: <b>tbd</b>`);
 
-  // Insert for each child
+  // Insert for each child (using withRetry-wrapped helper to survive ECONNRESET)
   for (const child of children) {
-    await db.insert(feedingSessions).values({
+    await insertFeedingSession({
       child,
       leftStart,
       leftEnd,
@@ -750,9 +708,6 @@ async function handleSummary(args: string[], chatId: number, lang: Lang) {
 }
 
 async function handleLast(args: string[], chatId: number, lang: Lang) {
-  const db = await getDb();
-  if (!db) return sendMessage(chatId, t("dbUnavailable", lang));
-
   // Optional child filter: /last nica or /last nici (default: both)
   const childArg = args[0]?.toLowerCase();
   const children: ("nica" | "nici")[] =
@@ -797,44 +752,32 @@ async function handleLast(args: string[], chatId: number, lang: Lang) {
     const childLabel = child === "nica" ? "👧 <b>Nica</b>" : "👶 <b>Nici</b>";
     msg += `${childLabel}\n`;
 
-    // ── Last feeding ──
-    const feedRows = await db
-      .select()
-      .from(feedingSessions)
-      .where(eq(feedingSessions.child, child))
-      .orderBy(desc(feedingSessions.createdAt))
-      .limit(1);
+    // ── Last feeding (withRetry-wrapped helper) ──
+    const lastFeed = await getLastFeedingSession(child);
 
-    if (feedRows.length === 0) {
+    if (!lastFeed) {
       msg += `${feedingLabel[lang]}: ${noFeedingLabels[lang]}\n`;
     } else {
-      const last = feedRows[0];
-      const ago = Date.now() - last.createdAt;
-      const timeStr = fmtVienna(last.createdAt, "HH:mm");
+      const ago = Date.now() - lastFeed.createdAt;
+      const timeStr = fmtVienna(lastFeed.createdAt, "HH:mm");
       const parts: string[] = [];
-      if (last.leftStart && last.leftEnd) parts.push(`👈 ${formatMs(last.leftEnd - last.leftStart)}`);
-      if (last.rightStart && last.rightEnd) parts.push(`👉 ${formatMs(last.rightEnd - last.rightStart)}`);
-      if (last.bottleMl) {
-        const notes = last.notes || "";
+      if (lastFeed.leftStart && lastFeed.leftEnd) parts.push(`👈 ${formatMs(lastFeed.leftEnd - lastFeed.leftStart)}`);
+      if (lastFeed.rightStart && lastFeed.rightEnd) parts.push(`👉 ${formatMs(lastFeed.rightEnd - lastFeed.rightStart)}`);
+      if (lastFeed.bottleMl) {
+        const notes = lastFeed.notes || "";
         const bottleIcon = notes.includes("own") ? "🍼👩" : notes.includes("other") ? "🍼🥛" : "🍼";
-        parts.push(`${bottleIcon} ${last.bottleMl} ml`);
+        parts.push(`${bottleIcon} ${lastFeed.bottleMl} ml`);
       }
       const detail = parts.length > 0 ? ` (${parts.join(" · ")})` : "";
       msg += `${feedingLabel[lang]}: <b>${timeStr}</b>${detail} — <b>${formatMs(ago)} ${agoLabels[lang]}</b>\n`;
     }
 
-    // ── Last diaper ──
-    const diaperRows = await db
-      .select()
-      .from(diaperChanges)
-      .where(eq(diaperChanges.child, child))
-      .orderBy(desc(diaperChanges.changedAt))
-      .limit(1);
+    // ── Last diaper (withRetry-wrapped helper) ──
+    const lastDiaper = await getLastDiaperChange(child);
 
-    if (diaperRows.length === 0) {
+    if (!lastDiaper) {
       msg += `${diaperLabel[lang]}: ${noDiaperLabels[lang]}\n`;
     } else {
-      const lastDiaper = diaperRows[0];
       const diaperAgo = Date.now() - lastDiaper.changedAt;
       const diaperTimeStr = fmtVienna(lastDiaper.changedAt, "HH:mm");
       const typeIcons: Record<string, string> = { wet: "💧", dirty: "💩", both: "💧💩" };

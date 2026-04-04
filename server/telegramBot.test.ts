@@ -3,6 +3,19 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 // Mock the db module so tests don't need a real database
 vi.mock("./db", () => ({
   getDb: vi.fn().mockResolvedValue(null),
+  // Write helpers: throw to simulate DB unavailable (tests check for error message)
+  insertFeedingSession: vi.fn().mockRejectedValue(new Error("Database not available")),
+  insertDiaperChange: vi.fn().mockRejectedValue(new Error("Database not available")),
+  insertVitaminDLog: vi.fn().mockRejectedValue(new Error("Database not available")),
+  // Read helpers: return empty/null to simulate no data (tests check for "no records" message)
+  getLastFeedingSession: vi.fn().mockResolvedValue(null),
+  getLastDiaperChange: vi.fn().mockResolvedValue(null),
+  getFeedingSessionsForDay: vi.fn().mockResolvedValue([]),
+  getDiaperChangesForDay: vi.fn().mockResolvedValue([]),
+  // Delete helpers: throw to simulate DB unavailable
+  deleteLastFeedingSession: vi.fn().mockRejectedValue(new Error("Database not available")),
+  deleteLastDiaperChange: vi.fn().mockRejectedValue(new Error("Database not available")),
+  getTelegramSettings: vi.fn().mockResolvedValue(null),
 }));
 
 // Mock axios to capture sendMessage calls
@@ -106,28 +119,30 @@ describe("Telegram bot — /log validation", () => {
 describe("Telegram bot — analytics commands", () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it("/today returns db unavailable (no db in test)", async () => {
+  it("/today returns daily summary (with empty data in test)", async () => {
     await handleWebhookUpdate(makeUpdate("/today"));
     const body = mockedAxios.mock.calls[0][1] as { text: string };
-    expect(body.text).toContain("Database not available");
+    // With mocked empty DB, returns a summary with 0 feedings
+    expect(body.text).toContain("Daily Summary");
   });
 
-  it("/week returns db unavailable (no db in test)", async () => {
+  it("/week returns weekly summary (with empty data in test)", async () => {
     await handleWebhookUpdate(makeUpdate("/week"));
     const body = mockedAxios.mock.calls[0][1] as { text: string };
-    expect(body.text).toContain("Database not available");
+    expect(body.text).toContain("Weekly Summary");
   });
 
-  it("/summary returns db unavailable (no db in test)", async () => {
+  it("/summary returns daily summary for specified date (with empty data in test)", async () => {
     await handleWebhookUpdate(makeUpdate("/summary 19.03"));
     const body = mockedAxios.mock.calls[0][1] as { text: string };
-    expect(body.text).toContain("Database not available");
+    expect(body.text).toContain("Daily Summary");
+    expect(body.text).toContain("19.03");
   });
 
-  it("/last returns db unavailable (no db in test)", async () => {
+  it("/last returns last status (with empty data in test)", async () => {
     await handleWebhookUpdate(makeUpdate("/last"));
     const body = mockedAxios.mock.calls[0][1] as { text: string };
-    expect(body.text).toContain("Database not available");
+    expect(body.text).toContain("Last status");
   });
 });
 
@@ -169,9 +184,12 @@ describe("Telegram bot — edge cases", () => {
 });
 
 describe("buildDailySummary", () => {
-  it("returns db unavailable message when db is null", async () => {
+  it("returns daily summary with empty data (no db needed with mocked helpers)", async () => {
     const result = await buildDailySummary(Date.now());
-    expect(result).toContain("Database not available");
+    // With mocked empty helpers, returns a valid summary with 0 feedings
+    expect(result).toContain("Daily Summary");
+    expect(result).toContain("Nica");
+    expect(result).toContain("Nici");
   });
 });
 
@@ -264,22 +282,28 @@ describe("Telegram bot — /log new features (no db)", () => {
 describe("Telegram bot — /last command", () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it("/last returns db unavailable (no db in test)", async () => {
+  it("/last returns last status for both children (with empty data)", async () => {
     await handleWebhookUpdate(makeUpdate("/last"));
     const body = mockedAxios.mock.calls[0][1] as { text: string };
-    expect(body.text).toContain("Database not available");
+    expect(body.text).toContain("Last status");
+    expect(body.text).toContain("Nica");
+    expect(body.text).toContain("Nici");
   });
 
-  it("/last nica returns db unavailable (child filter)", async () => {
+  it("/last nica returns last status for Nica only (child filter)", async () => {
     await handleWebhookUpdate(makeUpdate("/last nica"));
     const body = mockedAxios.mock.calls[0][1] as { text: string };
-    expect(body.text).toContain("Database not available");
+    expect(body.text).toContain("Last status");
+    expect(body.text).toContain("Nica");
+    expect(body.text).not.toContain("Nici");
   });
 
-  it("/last nici returns db unavailable (child filter)", async () => {
+  it("/last nici returns last status for Nici only (child filter)", async () => {
     await handleWebhookUpdate(makeUpdate("/last nici"));
     const body = mockedAxios.mock.calls[0][1] as { text: string };
-    expect(body.text).toContain("Database not available");
+    expect(body.text).toContain("Last status");
+    expect(body.text).toContain("Nici");
+    expect(body.text).not.toContain("Nica");
   });
 
   it("/help shows /last nica|nici syntax", async () => {

@@ -33,7 +33,16 @@ async function checkFeedings() {
       if (rows.length === 0) continue;
 
       const lastFeed = rows[0];
-      const elapsed = now - lastFeed.createdAt;
+      // Use the actual feed time (leftStart, rightStart, or createdAt for bottle/quick-log)
+      // leftEnd/rightEnd is the end of the feed; use the most recent end time as the "last fed" time
+      const feedEndTime = Math.max(
+        lastFeed.leftEnd ?? 0,
+        lastFeed.rightEnd ?? 0,
+        // For bottle feeds (no leftEnd/rightEnd), use createdAt
+        (lastFeed.leftEnd == null && lastFeed.rightEnd == null) ? lastFeed.createdAt : 0
+      );
+      const actualFeedTime = feedEndTime > 0 ? feedEndTime : lastFeed.createdAt;
+      const elapsed = now - actualFeedTime;
 
       if (elapsed < REMINDER_THRESHOLD_MS) continue;
 
@@ -44,7 +53,7 @@ async function checkFeedings() {
       lastReminderSent[child] = now;
 
       const childLabel = child === "nica" ? "Nica" : "Nici";
-      const lastTimeStr = format(new Date(lastFeed.createdAt), "HH:mm");
+      const lastTimeStr = format(new Date(actualFeedTime), "HH:mm");
       const elapsedStr = formatMs(elapsed);
 
       const childIcon = child === "nica" ? "👧" : "👶";

@@ -1,5 +1,14 @@
 # Changelog
 
+## v1.6.1 — Reliability fixes
+
+- Fix: all bot commands (/log, /last, /today, /week, /summary) now use withRetry-wrapped DB helpers to survive ECONNRESET on idle connections
+- Fix: feeding reminder now uses actual feed end time (leftEnd/rightEnd) instead of createdAt for elapsed time calculation
+- Fix: DB connection retry now waits 500ms before reconnecting to allow pool to fully close
+- Fix: ETIMEDOUT added to connection error detection alongside ECONNRESET/ECONNREFUSED
+- Improvement: /last no longer requires a live DB connection for read queries (uses cached helpers)
+- Tests: 66/66 passing; test mocks updated to reflect new helper-based architecture
+
 ## v1.6.0 — Quick-log mode
 
 - Quick-log: `/log nica left` (no time range) records the current time as a point-in-time feed

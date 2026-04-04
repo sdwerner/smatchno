@@ -235,3 +235,11 @@
 - [x] CHANGELOG: v1.6.0 entry added
 - [x] package.json: bumped to 1.6.0
 - [x] 66/66 tests passing, TypeScript clean
+
+## Server Crash + Reminder Investigation
+
+- [x] Investigate server crash on first /log entry — fixed: raw db.insert calls in handleLog replaced with withRetry-wrapped insertFeedingSession/insertDiaperChange helpers
+- [x] Investigate feeding reminders not being sent — fixed: feedingReminder.ts now uses leftEnd/rightEnd timestamps for elapsed time; all bot read queries use withRetry-wrapped helpers
+- [x] All bot functions (/log, /last, /today, /week, /summary) now use withRetry-wrapped DB helpers — no more ECONNRESET crashes
+- [x] Tests updated: 66/66 passing with new mock architecture
+- [x] Version bumped to v1.6.1, CHANGELOG updated

@@ -68,8 +68,13 @@ async function withRetry<T>(fn: () => Promise<T>): Promise<T> {
     return await fn();
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
-    if (msg.includes("ECONNRESET") || msg.includes("ECONNREFUSED") || msg.includes("PROTOCOL_CONNECTION_LOST")) {
+    const isConnErr = msg.includes("ECONNRESET") || msg.includes("ECONNREFUSED") ||
+      msg.includes("PROTOCOL_CONNECTION_LOST") || msg.includes("ETIMEDOUT");
+    if (isConnErr) {
+      console.warn("[Database] Connection error, resetting pool and retrying in 500ms...");
       resetDb();
+      // Give the pool 500ms to fully close before creating a new one
+      await new Promise(resolve => setTimeout(resolve, 500));
       await getDb(); // reconnect
       return await fn(); // retry once
     }
@@ -150,6 +155,20 @@ export async function getRecentFeedingSessions(child: "nica" | "nici", limit = 2
       .where(eq(feedingSessions.child, child))
       .orderBy(desc(feedingSessions.createdAt))
       .limit(limit);
+  });
+}
+
+export async function getLastFeedingSession(child: "nica" | "nici") {
+  return withRetry(async () => {
+    const db = await getDb();
+    if (!db) return null;
+    const rows = await db
+      .select()
+      .from(feedingSessions)
+      .where(eq(feedingSessions.child, child))
+      .orderBy(desc(feedingSessions.createdAt))
+      .limit(1);
+    return rows.length > 0 ? rows[0] : null;
   });
 }
 
@@ -235,6 +254,20 @@ export async function getRecentDiaperChanges(child: "nica" | "nici", limit = 20)
       .where(eq(diaperChanges.child, child))
       .orderBy(desc(diaperChanges.changedAt))
       .limit(limit);
+  });
+}
+
+export async function getLastDiaperChange(child: "nica" | "nici") {
+  return withRetry(async () => {
+    const db = await getDb();
+    if (!db) return null;
+    const rows = await db
+      .select()
+      .from(diaperChanges)
+      .where(eq(diaperChanges.child, child))
+      .orderBy(desc(diaperChanges.changedAt))
+      .limit(1);
+    return rows.length > 0 ? rows[0] : null;
   });
 }
 

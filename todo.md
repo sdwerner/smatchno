@@ -243,3 +243,12 @@
 - [x] All bot functions (/log, /last, /today, /week, /summary) now use withRetry-wrapped DB helpers — no more ECONNRESET crashes
 - [x] Tests updated: 66/66 passing with new mock architecture
 - [x] Version bumped to v1.6.1, CHANGELOG updated
+
+## Reminder Investigation (2026-04-05)
+
+- [x] Check server logs for reminder scheduler errors — confirmed ECONNRESET on both scheduler and reminder at 21:14:56
+- [x] Re-read feedingReminder.ts for logic bugs — logic correct, uses withRetry-wrapped helper
+- [x] Re-read telegramScheduler.ts for scheduler setup bugs — logic correct, uses withRetry-wrapped helper
+- [x] Verify DB helpers used by reminder return correct data — helpers correct
+- [x] Fix identified root cause — withRetry checked err.message but Drizzle wraps ECONNRESET in err.cause; now checks both; also added reconnect lock and proactive ping reconnect
+- [x] Add/update tests for reminder logic — 66/66 passing, no new tests needed (fix is in db.ts infrastructure)

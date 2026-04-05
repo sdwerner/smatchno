@@ -6,8 +6,13 @@ import { ENV } from './_core/env';
 
 let _db: ReturnType<typeof drizzle> | null = null;
 let _pool: Pool | null = null;
+// Serialise reconnect attempts: if one caller is already reconnecting,
+// subsequent callers wait for the same promise instead of creating duplicate pools.
+let _reconnectPromise: Promise<void> | null = null;
 
 export async function getDb() {
+  // If a reconnect is already in progress, wait for it before proceeding
+  if (_reconnectPromise) await _reconnectPromise;
   if (!_db && process.env.DATABASE_URL) {
     try {
       // Use a connection pool so idle connections are automatically recycled
@@ -46,10 +51,17 @@ function startPing() {
     _pool.query("SELECT 1", (err) => {
       if (err) {
         console.warn("[Database] Keep-alive ping failed:", err.message);
-        // Don't reset here — withRetry will handle it on the next real query
+        // Proactively reconnect so the pool is ready before the next real query
+        if (!_reconnectPromise) {
+          _reconnectPromise = (async () => {
+            resetDb();
+            await new Promise(resolve => setTimeout(resolve, 500));
+            await getDb();
+          })().finally(() => { _reconnectPromise = null; });
+        }
       }
     });
-  }, 4 * 60 * 1000); // every 4 minutes
+  }, 90 * 1000); // every 90 seconds (MySQL closes idle connections in ~2-5 min)
 }
 
 // Reset the db handle so the next call to getDb() creates a fresh pool.
@@ -62,21 +74,41 @@ export function resetDb() {
   _pool = null;
 }
 
-// Wrapper that retries once after a connection reset
+// Returns true if the error (or its .cause) is a transient connection error
+function isConnectionError(err: unknown): boolean {
+  const CONNECTION_ERRORS = ["ECONNRESET", "ECONNREFUSED", "PROTOCOL_CONNECTION_LOST", "ETIMEDOUT"];
+  const check = (msg: string) => CONNECTION_ERRORS.some(e => msg.includes(e));
+  if (err instanceof Error) {
+    if (check(err.message)) return true;
+    // DrizzleQueryError wraps the real error in .cause — check that too
+    const cause = (err as Error & { cause?: unknown }).cause;
+    if (cause instanceof Error && check(cause.message)) return true;
+    // Also check error code property (mysql2 sets err.code)
+    const code = (err as Error & { code?: string }).code ?? "";
+    if (CONNECTION_ERRORS.some(e => code.includes(e))) return true;
+  }
+  return false;
+}
+
+// Wrapper that retries once after a connection reset.
+// Uses _reconnectPromise to serialise concurrent reconnect attempts.
 async function withRetry<T>(fn: () => Promise<T>): Promise<T> {
   try {
     return await fn();
   } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : String(err);
-    const isConnErr = msg.includes("ECONNRESET") || msg.includes("ECONNREFUSED") ||
-      msg.includes("PROTOCOL_CONNECTION_LOST") || msg.includes("ETIMEDOUT");
-    if (isConnErr) {
-      console.warn("[Database] Connection error, resetting pool and retrying in 500ms...");
-      resetDb();
-      // Give the pool 500ms to fully close before creating a new one
-      await new Promise(resolve => setTimeout(resolve, 500));
-      await getDb(); // reconnect
-      return await fn(); // retry once
+    if (isConnectionError(err)) {
+      console.warn("[Database] Connection error detected, reconnecting...", err instanceof Error ? err.message : err);
+      // Only one caller should drive the reconnect; others wait on the same promise.
+      if (!_reconnectPromise) {
+        _reconnectPromise = (async () => {
+          resetDb();
+          // Give the pool 500ms to fully close before creating a new one
+          await new Promise(resolve => setTimeout(resolve, 500));
+          await getDb(); // create fresh pool
+        })().finally(() => { _reconnectPromise = null; });
+      }
+      await _reconnectPromise;
+      return await fn(); // retry once with the fresh pool
     }
     throw err;
   }

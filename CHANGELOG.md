@@ -1,5 +1,13 @@
 # Changelog
 
+## v1.6.2 — Connection retry deep-fix
+
+- Fix: `withRetry` now checks `err.cause.message` for ECONNRESET — Drizzle wraps the real error in `.cause`, so the previous check on `err.message` never matched and the retry branch was never entered
+- Fix: concurrent callers (scheduler + reminder nica + reminder nici) now share a single reconnect promise instead of each creating a duplicate pool
+- Fix: keep-alive ping now proactively reconnects when it detects a failure, so the pool is ready before the next real query fires
+- Improvement: keep-alive interval reduced from 4 minutes to 90 seconds to stay well within MySQL's idle connection timeout
+- 66/66 tests passing
+
 ## v1.6.1 — Reliability fixes
 
 - Fix: all bot commands (/log, /last, /today, /week, /summary) now use withRetry-wrapped DB helpers to survive ECONNRESET on idle connections

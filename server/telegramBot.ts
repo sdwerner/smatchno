@@ -1,5 +1,6 @@
 import axios from "axios";
 import { getDb, deleteLastFeedingSession, deleteLastDiaperChange, insertFeedingSession, insertDiaperChange, getLastFeedingSession, getLastDiaperChange, getFeedingSessionsForDay, getDiaperChangesForDay } from "./db";
+import { setSnooze, clearSnooze, getSnoozeRemaining } from "./feedingReminder";
 import { feedingSessions, diaperChanges } from "../drizzle/schema";
 import { and, gte, lte, desc, eq } from "drizzle-orm";
 import { format, startOfDay, endOfDay, subDays } from "date-fns";
@@ -125,6 +126,26 @@ export async function sendMessage(
 export async function setWebhook(webhookUrl: string) {
   const res = await axios.post(`${getApiBase()}/setWebhook`, { url: webhookUrl });
   console.log("[TelegramBot] Webhook set:", res.data);
+  // Register bot commands in BotFather menu after setting the webhook
+  await registerBotCommands().catch(err => console.warn("[TelegramBot] setMyCommands failed:", err.message));
+  return res.data;
+}
+
+export async function registerBotCommands() {
+  const commands = [
+    { command: "log",     description: "Log feeding or diaper (e.g. /log nica left)" },
+    { command: "last",   description: "Last feeding + diaper per child" },
+    { command: "today",  description: "Today\u2019s summary" },
+    { command: "week",   description: "Last 7 days summary" },
+    { command: "summary",description: "Summary for a specific date (DD.MM)" },
+    { command: "snooze", description: "Snooze reminders (e.g. /snooze 2h, /snooze off)" },
+    { command: "delete", description: "Delete last entry for a child" },
+    { command: "settings",description: "Show config & open settings" },
+    { command: "version",description: "Show version & uptime" },
+    { command: "help",   description: "Show all commands" },
+  ];
+  const res = await axios.post(`${getApiBase()}/setMyCommands`, { commands });
+  console.log("[TelegramBot] Bot commands registered:", res.data);
   return res.data;
 }
 
@@ -829,6 +850,11 @@ async function handleHelp(chatId: number, lang: Lang) {
 <b>Delete last entry:</b>
 <code>/delete nica</code> · <code>/delete nici</code> · <code>/delete both</code>
 
+<b>Reminders:</b>
+<code>/snooze 2h</code> — silence reminders for 2 hours
+<code>/snooze 30m</code> · <code>/snooze 1h30m</code> — custom duration
+<code>/snooze off</code> — cancel snooze · <code>/snooze</code> — check status
+
 <b>Settings &amp; Info:</b>
 <code>/settings</code> — show current config &amp; open settings
 <code>/version</code> — show version &amp; uptime`,
@@ -868,6 +894,11 @@ async function handleHelp(chatId: number, lang: Lang) {
 
 <b>Letzten Eintrag löschen:</b>
 <code>/delete nica</code> · <code>/delete nici</code> · <code>/delete beide</code>
+
+<b>Erinnerungen:</b>
+<code>/snooze 2h</code> — Erinnerungen für 2 Stunden stummschalten
+<code>/snooze 30m</code> · <code>/snooze 1h30m</code> — benutzerdefinierte Dauer
+<code>/snooze off</code> — Snooze beenden · <code>/snooze</code> — Status prüfen
 
 <b>Einstellungen &amp; Info:</b>
 <code>/settings</code> — aktuelle Konfiguration &amp; Einstellungen öffnen
@@ -909,6 +940,11 @@ async function handleHelp(chatId: number, lang: Lang) {
 <b>Видалити останній запис:</b>
 <code>/delete nica</code> · <code>/delete nici</code> · <code>/delete обидві</code>
 
+<b>Нагадування:</b>
+<code>/snooze 2h</code> — вимкнути нагадування на 2 години
+<code>/snooze 30m</code> · <code>/snooze 1h30m</code> — довільна тривалість
+<code>/snooze off</code> — скасувати · <code>/snooze</code> — перевірити статус
+
 <b>Налаштування &amp; Інфо:</b>
 <code>/settings</code> — поточна конфігурація &amp; відкрити налаштування
 <code>/version</code> — показати версію &amp; час роботи`,
@@ -943,6 +979,79 @@ async function handleVersion(chatId: number, lang: Lang) {
   };
 
   await sendMessage(chatId, texts[lang]);
+}
+
+// ─── /snooze command ─────────────────────────────────────────────────────────
+
+async function handleSnooze(args: string[], chatId: number, lang: Lang) {
+  const arg = (args[0] ?? "").toLowerCase().trim();
+
+  // /snooze off — cancel active snooze
+  if (arg === "off" || arg === "aus" || arg === "вимк") {
+    clearSnooze();
+    const msg = {
+      en: "✅ Snooze cancelled — feeding reminders are active again.",
+      de: "✅ Snooze beendet — Erinnerungen sind wieder aktiv.",
+      uk: "✅ Снуз скасовано — нагадування знову активні.",
+    };
+    return sendMessage(chatId, msg[lang]);
+  }
+
+  // /snooze (no args) — show current status
+  if (!arg) {
+    const remaining = getSnoozeRemaining();
+    if (remaining <= 0) {
+      const msg = {
+        en: "🔔 Reminders are active. Use <code>/snooze 2h</code> or <code>/snooze 30m</code> to silence.",
+        de: "🔔 Erinnerungen sind aktiv. Nutze <code>/snooze 2h</code> oder <code>/snooze 30m</code> zum Stummschalten.",
+        uk: "🔔 Нагадування активні. Використай <code>/snooze 2h</code> або <code>/snooze 30m</code> для вимкнення.",
+      };
+      return sendMessage(chatId, msg[lang]);
+    }
+    const h = Math.floor(remaining / 3600000);
+    const m = Math.floor((remaining % 3600000) / 60000);
+    const timeStr = h > 0 ? `${h}h ${m}m` : `${m}m`;
+    const msg = {
+      en: `🔕 Reminders snoozed for <b>${timeStr}</b> more. Use <code>/snooze off</code> to cancel.`,
+      de: `🔕 Erinnerungen noch <b>${timeStr}</b> stummgeschaltet. <code>/snooze off</code> zum Beenden.`,
+      uk: `🔕 Нагадування вимкнені ще на <b>${timeStr}</b>. <code>/snooze off</code> — скасувати.`,
+    };
+    return sendMessage(chatId, msg[lang]);
+  }
+
+  // Parse duration: 2h, 30m, 1h30m, 90m, etc.
+  const durationMatch = arg.match(/^(?:(\d+)h)?(?:(\d+)m)?$/);
+  if (!durationMatch || (!durationMatch[1] && !durationMatch[2])) {
+    const msg = {
+      en: "❌ Usage: <code>/snooze 2h</code> · <code>/snooze 30m</code> · <code>/snooze 1h30m</code> · <code>/snooze off</code>",
+      de: "❌ Nutzung: <code>/snooze 2h</code> · <code>/snooze 30m</code> · <code>/snooze 1h30m</code> · <code>/snooze off</code>",
+      uk: "❌ Використання: <code>/snooze 2h</code> · <code>/snooze 30m</code> · <code>/snooze 1h30m</code> · <code>/snooze off</code>",
+    };
+    return sendMessage(chatId, msg[lang]);
+  }
+
+  const hours = parseInt(durationMatch[1] ?? "0");
+  const minutes = parseInt(durationMatch[2] ?? "0");
+  const durationMs = (hours * 60 + minutes) * 60 * 1000;
+
+  if (durationMs <= 0) {
+    const msg = {
+      en: "❌ Duration must be greater than 0. Example: <code>/snooze 2h</code>",
+      de: "❌ Dauer muss größer als 0 sein. Beispiel: <code>/snooze 2h</code>",
+      uk: "❌ Тривалість має бути більше 0. Приклад: <code>/snooze 2h</code>",
+    };
+    return sendMessage(chatId, msg[lang]);
+  }
+
+  setSnooze(Date.now() + durationMs);
+
+  const timeStr = hours > 0 && minutes > 0 ? `${hours}h ${minutes}m` : hours > 0 ? `${hours}h` : `${minutes}m`;
+  const msg = {
+    en: `🔕 Feeding reminders snoozed for <b>${timeStr}</b>.\nUse <code>/snooze off</code> to cancel early.`,
+    de: `🔕 Erinnerungen für <b>${timeStr}</b> stummgeschaltet.\n<code>/snooze off</code> zum vorzeitigen Beenden.`,
+    uk: `🔕 Нагадування вимкнені на <b>${timeStr}</b>.\n<code>/snooze off</code> — скасувати достроково.`,
+  };
+  return sendMessage(chatId, msg[lang]);
 }
 
 // ─── /settings command ───────────────────────────────────────────────────────────────
@@ -1261,6 +1370,7 @@ export async function handleWebhookUpdate(update: TelegramUpdate) {
     case "week":     return handleWeek(chatId, lang);
     case "summary":  return handleSummary(args, chatId, lang);
     case "last":     return handleLast(args, chatId, lang);
+    case "snooze":   return handleSnooze(args, chatId, lang);
     case "settings": return handleSettings(chatId, lang);
     case "version":  return handleVersion(chatId, lang);
     case "help":
@@ -1283,31 +1393,43 @@ export async function notifyDeployment(): Promise<void> {
   if (!token || !chatId) return; // silently skip if not configured
 
   try {
-    // Read version from package.json
-    const { readFileSync } = await import("fs");
+    const { readFileSync, writeFileSync, existsSync } = await import("fs");
     const { fileURLToPath } = await import("url");
     const { dirname, join } = await import("path");
     const __dirname = dirname(fileURLToPath(import.meta.url));
+
+    // Read current version from package.json
     const pkg = JSON.parse(readFileSync(join(__dirname, "../package.json"), "utf8")) as { version: string };
     const version = pkg.version;
+
+    // Compare against the last version we notified about.
+    // The sentinel file lives outside the build output so it persists across restarts.
+    const sentinelPath = join(__dirname, "../", ".last-deploy-version");
+    const lastNotified = existsSync(sentinelPath)
+      ? readFileSync(sentinelPath, "utf8").trim()
+      : "";
+
+    if (lastNotified === version) {
+      console.log(`[TelegramBot] Deployment notification skipped — already sent for v${version}`);
+      return;
+    }
 
     // Read the top section of CHANGELOG.md (up to the next ## heading)
     let changelogSection = "";
     try {
       const raw = readFileSync(join(__dirname, "../CHANGELOG.md"), "utf8");
-      // Extract the first version block (lines between first ## and second ##)
       const lines = raw.split("\n");
       let inBlock = false;
       const blockLines: string[] = [];
       for (const line of lines) {
         if (line.startsWith("## ")) {
-          if (inBlock) break; // end of first block
+          if (inBlock) break;
           inBlock = true;
-          continue; // skip the heading itself (we already have the version)
+          continue;
         }
         if (inBlock && line.trim()) blockLines.push(line.replace(/^- /, "• "));
       }
-      changelogSection = blockLines.slice(0, 8).join("\n"); // cap at 8 items
+      changelogSection = blockLines.slice(0, 8).join("\n");
     } catch {
       // CHANGELOG.md missing — no problem
     }
@@ -1318,6 +1440,9 @@ export async function notifyDeployment(): Promise<void> {
     ].join("\n");
 
     await sendMessage(chatId, body);
+
+    // Persist the version so subsequent restarts don't re-notify
+    writeFileSync(sentinelPath, version, "utf8");
     console.log(`[TelegramBot] Deployment notification sent (v${version})`);
   } catch (err) {
     console.error("[TelegramBot] Failed to send deployment notification:", err);

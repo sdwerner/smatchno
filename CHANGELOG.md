@@ -1,5 +1,16 @@
 # Changelog
 
+## v1.6.3 — /snooze command + deployment notification fix
+
+- New: `/snooze 2h` / `/snooze 30m` / `/snooze 1h30m` — silence feeding reminders for a custom duration
+- New: `/snooze off` — cancel active snooze immediately
+- New: `/snooze` (no args) — check current snooze status
+- New: `/snooze` hint appended to every feeding reminder message
+- Fix: deployment notification now only fires when the version has changed (sentinel file `.last-deploy-version`); no more spam on every server restart
+- Improvement: bot command menu (BotFather autocomplete) now includes `/snooze` and all commands are registered on every deploy
+- /help updated in EN/DE/UK with `/snooze` syntax
+- 74/74 tests passing
+
 ## v1.6.2 — Connection retry deep-fix
 
 - Fix: `withRetry` now checks `err.cause.message` for ECONNRESET — Drizzle wraps the real error in `.cause`, so the previous check on `err.message` never matched and the retry branch was never entered

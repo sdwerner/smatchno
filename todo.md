@@ -252,3 +252,16 @@
 - [x] Verify DB helpers used by reminder return correct data — helpers correct
 - [x] Fix identified root cause — withRetry checked err.message but Drizzle wraps ECONNRESET in err.cause; now checks both; also added reconnect lock and proactive ping reconnect
 - [x] Add/update tests for reminder logic — 66/66 passing, no new tests needed (fix is in db.ts infrastructure)
+
+## Deployment Notification Fix
+
+- [x] Only send startup Telegram message when version has changed since last deploy
+
+## /snooze Command + Deployment Notification Fix
+
+- [x] Add /snooze command: parse duration (e.g. /snooze 2h, /snooze 30m, /snooze off)
+- [x] Wire snooze state into feedingReminder.ts (global snooze overrides per-child snooze)
+- [x] Register /snooze in BotFather bot commands
+- [x] Update /help in EN/DE/UK with /snooze syntax
+- [x] Add tests for /snooze command (8 new tests, 74 total passing)
+- [x] Deployment notification: only send when version has changed (sentinel file .last-deploy-version)

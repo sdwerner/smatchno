@@ -8,7 +8,27 @@ const SNOOZE_AFTER_REMINDER_MS = 60 * 60 * 1000; // don't re-alert for 1h after 
 
 const lastReminderSent: Record<string, number> = {};
 
-let reminderInterval: ReturnType<typeof setInterval> | null = null;
+// ─── Global snooze ───────────────────────────────────────────────────────────
+// When set, ALL feeding reminders are suppressed until this timestamp.
+let globalSnoozeUntil = 0;
+
+/** Snooze all feeding reminders until `until` (ms epoch). */
+export function setSnooze(until: number): void {
+  globalSnoozeUntil = until;
+}
+
+/** Cancel any active snooze immediately. */
+export function clearSnooze(): void {
+  globalSnoozeUntil = 0;
+}
+
+/** Returns ms remaining in the current snooze, or 0 if not snoozed. */
+export function getSnoozeRemaining(): number {
+  const remaining = globalSnoozeUntil - Date.now();
+  return remaining > 0 ? remaining : 0;
+}
+
+// ─── Formatting ──────────────────────────────────────────────────────────────
 
 function formatMs(ms: number): string {
   const totalSec = Math.floor(ms / 1000);
@@ -19,9 +39,16 @@ function formatMs(ms: number): string {
   return `<1m`;
 }
 
+// ─── Check loop ──────────────────────────────────────────────────────────────
+
+let reminderInterval: ReturnType<typeof setInterval> | null = null;
+
 async function checkFeedings() {
   const chatId = process.env.TELEGRAM_CHAT_ID;
   if (!chatId) return;
+
+  // Respect global snooze
+  if (getSnoozeRemaining() > 0) return;
 
   const now = Date.now();
 
@@ -33,12 +60,10 @@ async function checkFeedings() {
       if (rows.length === 0) continue;
 
       const lastFeed = rows[0];
-      // Use the actual feed time (leftStart, rightStart, or createdAt for bottle/quick-log)
-      // leftEnd/rightEnd is the end of the feed; use the most recent end time as the "last fed" time
+      // Use the actual feed end time; fall back to createdAt for bottle/quick-log entries
       const feedEndTime = Math.max(
         lastFeed.leftEnd ?? 0,
         lastFeed.rightEnd ?? 0,
-        // For bottle feeds (no leftEnd/rightEnd), use createdAt
         (lastFeed.leftEnd == null && lastFeed.rightEnd == null) ? lastFeed.createdAt : 0
       );
       const actualFeedTime = feedEndTime > 0 ? feedEndTime : lastFeed.createdAt;
@@ -46,7 +71,7 @@ async function checkFeedings() {
 
       if (elapsed < REMINDER_THRESHOLD_MS) continue;
 
-      // Check snooze: don't send another reminder within 1h of the last one
+      // Don't re-alert within 1h of the last reminder for this child
       const lastSent = lastReminderSent[child] ?? 0;
       if (now - lastSent < SNOOZE_AFTER_REMINDER_MS) continue;
 
@@ -55,8 +80,8 @@ async function checkFeedings() {
       const childLabel = child === "nica" ? "Nica" : "Nici";
       const lastTimeStr = format(new Date(actualFeedTime), "HH:mm");
       const elapsedStr = formatMs(elapsed);
-
       const childIcon = child === "nica" ? "👧" : "👶";
+
       const msg = [
         `⏰ ${childIcon} <b>${childLabel}</b> — feeding reminder!`,
         ``,
@@ -65,6 +90,7 @@ async function checkFeedings() {
         `🇺🇦 Останнє годування о <b>${lastTimeStr}</b> — <b>${elapsedStr} тому</b>`,
         ``,
         `<code>/log ${child} left HH:MM-HH:MM</code>`,
+        `<code>/snooze 1h</code> — silence reminders for 1 hour`,
       ].join("\n");
 
       await sendMessage(chatId, msg);

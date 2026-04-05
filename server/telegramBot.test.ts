@@ -425,3 +425,60 @@ describe("normalizeVoiceTranscription — Whisper punctuation and mis-transcript
     expect(normalizeVoiceTranscription("/last")).toBe("/last");
   });
 });
+
+describe("Telegram bot — /snooze", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("/snooze 2h — confirms snooze for 2 hours", async () => {
+    await handleWebhookUpdate(makeUpdate("/snooze 2h", "en"));
+    expect(mockedAxios).toHaveBeenCalledOnce();
+    const body = mockedAxios.mock.calls[0][1] as { text: string };
+    expect(body.text).toContain("2h");
+    expect(body.text).toContain("snooze off");
+  });
+
+  it("/snooze 30m — confirms snooze for 30 minutes", async () => {
+    await handleWebhookUpdate(makeUpdate("/snooze 30m", "en"));
+    const body = mockedAxios.mock.calls[0][1] as { text: string };
+    expect(body.text).toContain("30m");
+  });
+
+  it("/snooze 1h30m — confirms combined duration", async () => {
+    await handleWebhookUpdate(makeUpdate("/snooze 1h30m", "en"));
+    const body = mockedAxios.mock.calls[0][1] as { text: string };
+    expect(body.text).toContain("1h 30m");
+  });
+
+  it("/snooze off — cancels snooze", async () => {
+    await handleWebhookUpdate(makeUpdate("/snooze off", "en"));
+    const body = mockedAxios.mock.calls[0][1] as { text: string };
+    expect(body.text).toContain("cancelled");
+  });
+
+  it("/snooze (no args) — shows status when not snoozed", async () => {
+    // First cancel any active snooze from previous tests
+    await handleWebhookUpdate(makeUpdate("/snooze off", "en"));
+    vi.clearAllMocks();
+    await handleWebhookUpdate(makeUpdate("/snooze", "en"));
+    const body = mockedAxios.mock.calls[0][1] as { text: string };
+    expect(body.text).toContain("active");
+  });
+
+  it("/snooze invalid — shows usage hint", async () => {
+    await handleWebhookUpdate(makeUpdate("/snooze xyz", "en"));
+    const body = mockedAxios.mock.calls[0][1] as { text: string };
+    expect(body.text).toContain("Usage");
+  });
+
+  it("/snooze 2h in German — responds in German", async () => {
+    await handleWebhookUpdate(makeUpdate("/snooze 2h", "de"));
+    const body = mockedAxios.mock.calls[0][1] as { text: string };
+    expect(body.text).toContain("stummgeschaltet");
+  });
+
+  it("/snooze off in German — responds in German", async () => {
+    await handleWebhookUpdate(makeUpdate("/snooze off", "de"));
+    const body = mockedAxios.mock.calls[0][1] as { text: string };
+    expect(body.text).toContain("beendet");
+  });
+});

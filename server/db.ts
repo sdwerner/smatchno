@@ -29,10 +29,19 @@ export async function getDb() {
         // The withRetry wrapper handles any remaining ECONNRESET at query time
       });
       _db = drizzle(_pool);
+      // Warm up the pool: run SELECT 1 to verify the connection is actually alive.
+      // createPool() is lazy — it doesn't open a TCP connection until the first query.
+      // Without this, the first real query after a reconnect can still hit ECONNRESET.
+      await new Promise<void>((resolve, reject) => {
+        _pool!.query("SELECT 1", (err) => {
+          if (err) reject(err);
+          else resolve();
+        });
+      });
       startPing(); // keep the pool alive with periodic SELECT 1
-      console.log("[Database] Connection pool created");
+      console.log("[Database] Connection pool created and verified");
     } catch (error) {
-      console.warn("[Database] Failed to connect:", error);
+      console.warn("[Database] Failed to connect or verify:", error);
       _db = null;
       _pool = null;
     }
@@ -90,28 +99,38 @@ function isConnectionError(err: unknown): boolean {
   return false;
 }
 
-// Wrapper that retries once after a connection reset.
-// Uses _reconnectPromise to serialise concurrent reconnect attempts.
+// Wrapper that retries up to MAX_RETRIES times after a connection reset,
+// with exponential backoff. Uses _reconnectPromise to serialise concurrent
+// reconnect attempts so only one caller drives the pool reset.
+const MAX_RETRIES = 3;
 async function withRetry<T>(fn: () => Promise<T>): Promise<T> {
-  try {
-    return await fn();
-  } catch (err: unknown) {
-    if (isConnectionError(err)) {
-      console.warn("[Database] Connection error detected, reconnecting...", err instanceof Error ? err.message : err);
+  let lastErr: unknown;
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      return await fn();
+    } catch (err: unknown) {
+      if (!isConnectionError(err)) throw err; // non-connection errors bubble immediately
+      lastErr = err;
+      console.warn(`[Database] Connection error (attempt ${attempt + 1}/${MAX_RETRIES + 1}), reconnecting...`,
+        err instanceof Error ? err.message : err);
       // Only one caller should drive the reconnect; others wait on the same promise.
       if (!_reconnectPromise) {
         _reconnectPromise = (async () => {
           resetDb();
-          // Give the pool 500ms to fully close before creating a new one
-          await new Promise(resolve => setTimeout(resolve, 500));
-          await getDb(); // create fresh pool
+          // Exponential backoff: 500ms, 1s, 2s
+          const delay = 500 * Math.pow(2, attempt);
+          await new Promise(resolve => setTimeout(resolve, delay));
+          await getDb(); // create fresh pool (includes SELECT 1 warm-up)
         })().finally(() => { _reconnectPromise = null; });
       }
       await _reconnectPromise;
-      return await fn(); // retry once with the fresh pool
+      // If getDb() failed (pool still null), wait a bit more before retrying
+      if (!_db) {
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
     }
-    throw err;
   }
+  throw lastErr;
 }
 
 export async function upsertUser(user: InsertUser): Promise<void> {

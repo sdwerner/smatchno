@@ -265,3 +265,8 @@
 - [x] Update /help in EN/DE/UK with /snooze syntax
 - [x] Add tests for /snooze command (8 new tests, 74 total passing)
 - [x] Deployment notification: only send when version has changed (sentinel file .last-deploy-version)
+
+## Reminder Investigation (2026-04-07)
+
+- [x] Fix: retry fails because new pool's first query also gets ECONNRESET (cold pool) — getDb() now runs SELECT 1 after pool creation to verify the connection is live
+- [x] Fix: increase retry count from 1 to 3 with exponential backoff (500ms→1s→2s) so transient failures are absorbed

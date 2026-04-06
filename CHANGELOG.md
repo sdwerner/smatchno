@@ -1,5 +1,11 @@
 # Changelog
 
+## v1.6.4 — DB connection hardening (cold pool + exponential backoff)
+
+- Fix: `getDb()` now runs `SELECT 1` immediately after creating a new pool to verify the connection is alive before returning it. Previously, `createPool()` was lazy — it didn't open a TCP connection until the first real query, which meant the first query after a reconnect could still hit ECONNRESET.
+- Fix: `withRetry` now retries up to 3 times (was 1) with exponential backoff (500ms → 1s → 2s) so transient MySQL server blips are fully absorbed without losing the reminder.
+- 74/74 tests passing
+
 ## v1.6.3 — /snooze command + deployment notification fix
 
 - New: `/snooze 2h` / `/snooze 30m` / `/snooze 1h30m` — silence feeding reminders for a custom duration

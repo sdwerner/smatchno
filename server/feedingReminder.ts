@@ -8,6 +8,11 @@ const SNOOZE_AFTER_REMINDER_MS = 60 * 60 * 1000; // don't re-alert for 1h after 
 
 const lastReminderSent: Record<string, number> = {};
 
+/** Returns the last time a reminder was sent for a child (ms epoch), or 0 if never. */
+export function getLastReminderSent(child: string): number {
+  return lastReminderSent[child] ?? 0;
+}
+
 // ─── Global snooze ───────────────────────────────────────────────────────────
 // When set, ALL feeding reminders are suppressed until this timestamp.
 let globalSnoozeUntil = 0;

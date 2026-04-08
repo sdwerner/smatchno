@@ -482,3 +482,61 @@ describe("Telegram bot — /snooze", () => {
     expect(body.text).toContain("beendet");
   });
 });
+
+describe("Telegram bot — /status", () => {
+  beforeEach(() => {
+    mockedAxios.mockClear();
+  });
+
+  it("/status — shows DB status, uptime, and reminders (EN, DB null = unreachable)", async () => {
+    await handleWebhookUpdate(makeUpdate("/status", "en"));
+    const body = mockedAxios.mock.calls[0][1] as { text: string };
+    expect(body.text).toContain("Status");
+    expect(body.text).toContain("Database");
+    expect(body.text).toContain("Uptime");
+    expect(body.text).toContain("Nica");
+    expect(body.text).toContain("Nici");
+    // DB mock returns null → unreachable
+    expect(body.text).toContain("unreachable");
+  });
+
+  it("/status — shows 'never' for reminders when none sent", async () => {
+    await handleWebhookUpdate(makeUpdate("/status", "en"));
+    const body = mockedAxios.mock.calls[0][1] as { text: string };
+    expect(body.text).toContain("never");
+  });
+
+  it("/status — shows reminders active when not snoozed", async () => {
+    // Ensure no snooze active
+    await handleWebhookUpdate(makeUpdate("/snooze off", "en"));
+    mockedAxios.mockClear();
+    await handleWebhookUpdate(makeUpdate("/status", "en"));
+    const body = mockedAxios.mock.calls[0][1] as { text: string };
+    expect(body.text).toContain("Reminders active");
+  });
+
+  it("/status — shows snooze remaining when snoozed", async () => {
+    await handleWebhookUpdate(makeUpdate("/snooze 2h", "en"));
+    mockedAxios.mockClear();
+    await handleWebhookUpdate(makeUpdate("/status", "en"));
+    const body = mockedAxios.mock.calls[0][1] as { text: string };
+    expect(body.text).toContain("snoozed");
+    // Cancel snooze after test
+    await handleWebhookUpdate(makeUpdate("/snooze off", "en"));
+  });
+
+  it("/status in German — responds in German", async () => {
+    await handleWebhookUpdate(makeUpdate("/status", "de"));
+    const body = mockedAxios.mock.calls[0][1] as { text: string };
+    expect(body.text).toContain("Status");
+    expect(body.text).toContain("Datenbank");
+    expect(body.text).toContain("noch nie");
+  });
+
+  it("/status in Ukrainian — responds in Ukrainian", async () => {
+    await handleWebhookUpdate(makeUpdate("/status", "uk"));
+    const body = mockedAxios.mock.calls[0][1] as { text: string };
+    expect(body.text).toContain("Статус");
+    expect(body.text).toContain("ніколи");
+  });
+});

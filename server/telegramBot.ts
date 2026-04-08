@@ -1,6 +1,6 @@
 import axios from "axios";
 import { getDb, deleteLastFeedingSession, deleteLastDiaperChange, insertFeedingSession, insertDiaperChange, getLastFeedingSession, getLastDiaperChange, getFeedingSessionsForDay, getDiaperChangesForDay } from "./db";
-import { setSnooze, clearSnooze, getSnoozeRemaining } from "./feedingReminder";
+import { setSnooze, clearSnooze, getSnoozeRemaining, getLastReminderSent } from "./feedingReminder";
 import { feedingSessions, diaperChanges } from "../drizzle/schema";
 import { and, gte, lte, desc, eq } from "drizzle-orm";
 import { format, startOfDay, endOfDay, subDays } from "date-fns";
@@ -139,6 +139,7 @@ export async function registerBotCommands() {
     { command: "week",   description: "Last 7 days summary" },
     { command: "summary",description: "Summary for a specific date (DD.MM)" },
     { command: "snooze", description: "Snooze reminders (e.g. /snooze 2h, /snooze off)" },
+    { command: "status", description: "Show DB status, last reminders & snooze state" },
     { command: "delete", description: "Delete last entry for a child" },
     { command: "settings",description: "Show config & open settings" },
     { command: "version",description: "Show version & uptime" },
@@ -856,6 +857,7 @@ async function handleHelp(chatId: number, lang: Lang) {
 <code>/snooze off</code> — cancel snooze · <code>/snooze</code> — check status
 
 <b>Settings &amp; Info:</b>
+<code>/status</code> — DB status, last reminders &amp; snooze state
 <code>/settings</code> — show current config &amp; open settings
 <code>/version</code> — show version &amp; uptime`,
 
@@ -901,6 +903,7 @@ async function handleHelp(chatId: number, lang: Lang) {
 <code>/snooze off</code> — Snooze beenden · <code>/snooze</code> — Status prüfen
 
 <b>Einstellungen &amp; Info:</b>
+<code>/status</code> — DB-Status, letzte Erinnerungen &amp; Snooze-Zustand
 <code>/settings</code> — aktuelle Konfiguration &amp; Einstellungen öffnen
 <code>/version</code> — Version &amp; Laufzeit anzeigen`,
 
@@ -946,11 +949,112 @@ async function handleHelp(chatId: number, lang: Lang) {
 <code>/snooze off</code> — скасувати · <code>/snooze</code> — перевірити статус
 
 <b>Налаштування &amp; Інфо:</b>
+<code>/status</code> — статус БД, останні нагадування &amp; снуз
 <code>/settings</code> — поточна конфігурація &amp; відкрити налаштування
 <code>/version</code> — показати версію &amp; час роботи`,
   };
 
   await sendMessage(chatId, texts[lang], analyticsButton(lang));
+}
+
+// ─── /status command ────────────────────────────────────────────────────────────────
+
+async function handleStatus(chatId: number, lang: Lang) {
+  const { readFileSync } = await import("fs");
+  const { fileURLToPath } = await import("url");
+  const { dirname, join } = await import("path");
+  const __dirname = dirname(fileURLToPath(import.meta.url));
+
+  // Version
+  let version = "unknown";
+  try {
+    const pkg = JSON.parse(readFileSync(join(__dirname, "../package.json"), "utf8")) as { version: string };
+    version = pkg.version;
+  } catch { /* ignore */ }
+
+  // Uptime
+  const uptimeMs = Date.now() - SERVER_START_MS;
+  const uptimeH = Math.floor(uptimeMs / 3_600_000);
+  const uptimeM = Math.floor((uptimeMs % 3_600_000) / 60_000);
+  const uptimeStr = uptimeH > 0 ? `${uptimeH}h ${uptimeM}m` : `${uptimeM}m`;
+
+  // DB connectivity
+  let dbOk = false;
+  try {
+    const db = await getDb();
+    dbOk = db !== null;
+  } catch { /* ignore */ }
+  const dbIcon = dbOk ? "✅" : "❌";
+
+  // Snooze state
+  const snoozeRemaining = getSnoozeRemaining();
+  const snoozeH = Math.floor(snoozeRemaining / 3_600_000);
+  const snoozeM = Math.floor((snoozeRemaining % 3_600_000) / 60_000);
+  const snoozeStr = snoozeRemaining > 0
+    ? (snoozeH > 0 ? `${snoozeH}h ${snoozeM}m` : `${snoozeM}m`)
+    : null;
+
+  // Last reminder sent per child
+  function fmtReminder(child: string): string {
+    const ts = getLastReminderSent(child);
+    if (!ts) return lang === "de" ? "noch nie" : lang === "uk" ? "ніколи" : "never";
+    const elapsed = Date.now() - ts;
+    const h = Math.floor(elapsed / 3_600_000);
+    const m = Math.floor((elapsed % 3_600_000) / 60_000);
+    const timeStr = fmtVienna(ts, "HH:mm");
+    const agoStr = h > 0 ? `${h}h ${m}m` : `${m}m`;
+    return lang === "de" ? `${timeStr} (vor ${agoStr})` :
+           lang === "uk" ? `${timeStr} (${agoStr} тому)` :
+           `${timeStr} (${agoStr} ago)`;
+  }
+
+  const nicaReminder = fmtReminder("nica");
+  const niciReminder = fmtReminder("nici");
+
+  const snoozeLineEn = snoozeStr ? `🔕 Reminders snoozed for <b>${snoozeStr}</b>` : `🔔 Reminders active`;
+  const snoozeLineDe = snoozeStr ? `🔕 Erinnerungen noch <b>${snoozeStr}</b> stummgeschaltet` : `🔔 Erinnerungen aktiv`;
+  const snoozeLineUk = snoozeStr ? `🔕 Нагадування вимкнені ще на <b>${snoozeStr}</b>` : `🔔 Нагадування активні`;
+
+  const texts: Record<Lang, string> = {
+    en: [
+      `📊 <b>Baby Tracker v${version} — Status</b>`,
+      ``,
+      `${dbIcon} Database: <b>${dbOk ? "connected" : "unreachable"}</b>`,
+      `⏱ Uptime: <b>${uptimeStr}</b>`,
+      ``,
+      `🔔 <b>Last reminders sent:</b>`,
+      `  👧 Nica: <b>${nicaReminder}</b>`,
+      `  👶 Nici: <b>${niciReminder}</b>`,
+      ``,
+      snoozeLineEn,
+    ].join("\n"),
+    de: [
+      `📊 <b>Baby Tracker v${version} — Status</b>`,
+      ``,
+      `${dbIcon} Datenbank: <b>${dbOk ? "verbunden" : "nicht erreichbar"}</b>`,
+      `⏱ Laufzeit: <b>${uptimeStr}</b>`,
+      ``,
+      `🔔 <b>Letzte Erinnerungen:</b>`,
+      `  👧 Nica: <b>${nicaReminder}</b>`,
+      `  👶 Nici: <b>${niciReminder}</b>`,
+      ``,
+      snoozeLineDe,
+    ].join("\n"),
+    uk: [
+      `📊 <b>Baby Tracker v${version} — Статус</b>`,
+      ``,
+      `${dbIcon} База даних: <b>${dbOk ? "підключена" : "недоступна"}</b>`,
+      `⏱ Час роботи: <b>${uptimeStr}</b>`,
+      ``,
+      `🔔 <b>Останні нагадування:</b>`,
+      `  👧 Nica: <b>${nicaReminder}</b>`,
+      `  👶 Nici: <b>${niciReminder}</b>`,
+      ``,
+      snoozeLineUk,
+    ].join("\n"),
+  };
+
+  await sendMessage(chatId, texts[lang]);
 }
 
 // ─── /version command ───────────────────────────────────────────────────────────────
@@ -1371,6 +1475,7 @@ export async function handleWebhookUpdate(update: TelegramUpdate) {
     case "summary":  return handleSummary(args, chatId, lang);
     case "last":     return handleLast(args, chatId, lang);
     case "snooze":   return handleSnooze(args, chatId, lang);
+    case "status":   return handleStatus(chatId, lang);
     case "settings": return handleSettings(chatId, lang);
     case "version":  return handleVersion(chatId, lang);
     case "help":

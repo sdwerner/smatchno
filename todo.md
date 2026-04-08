@@ -270,3 +270,11 @@
 
 - [x] Fix: retry fails because new pool's first query also gets ECONNRESET (cold pool) — getDb() now runs SELECT 1 after pool creation to verify the connection is live
 - [x] Fix: increase retry count from 1 to 3 with exponential backoff (500ms→1s→2s) so transient failures are absorbed
+
+## /status Command
+
+- [x] Implement handleStatus: DB ping, last reminder sent times (nica/nici), snooze state, uptime, version
+- [x] Wire /status into command dispatch
+- [x] Register /status with BotFather
+- [x] Update /help in EN/DE/UK
+- [x] Add tests for /status (6 new tests, 80 total passing)

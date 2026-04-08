@@ -1,5 +1,12 @@
 # Changelog
 
+## v1.6.5 — /status command
+
+- New: `/status` — shows DB connectivity (✅/❌), server uptime, last reminder sent per child (time + elapsed), and current snooze state
+- `/status` added to BotFather autocomplete menu
+- `/help` updated in EN/DE/UK with `/status` entry
+- 80/80 tests passing
+
 ## v1.6.4 — DB connection hardening (cold pool + exponential backoff)
 
 - Fix: `getDb()` now runs `SELECT 1` immediately after creating a new pool to verify the connection is alive before returning it. Previously, `createPool()` was lazy — it didn't open a TCP connection until the first real query, which meant the first query after a reconnect could still hit ECONNRESET.

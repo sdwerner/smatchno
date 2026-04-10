@@ -13,6 +13,10 @@ import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
 
+// When SPLIT_BOT=1, the bot runs as a separate process (server/bot.ts).
+// The API server skips bot/scheduler startup to avoid duplicate reminders.
+const splitBot = process.env.SPLIT_BOT === "1";
+
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
     const server = net.createServer();
@@ -41,15 +45,17 @@ async function startServer() {
   // OAuth callback under /api/oauth/callback
   registerOAuthRoutes(app);
 
-  // Telegram webhook endpoint
-  app.post("/api/telegram/webhook", async (req, res) => {
-    try {
-      await handleWebhookUpdate(req.body);
-    } catch (err) {
-      console.error("[Webhook] Error:", err);
-    }
-    res.sendStatus(200);
-  });
+  // Telegram webhook endpoint (only when bot runs in-process)
+  if (!splitBot) {
+    app.post("/api/telegram/webhook", async (req, res) => {
+      try {
+        await handleWebhookUpdate(req.body);
+      } catch (err) {
+        console.error("[Webhook] Error:", err);
+      }
+      res.sendStatus(200);
+    });
+  }
 
   // tRPC API
   app.use(
@@ -81,19 +87,24 @@ async function startServer() {
     await seedTelegramSettingsFromEnv();
     await refreshBotCredentials();
 
-    startTelegramScheduler();
-    startFeedingReminder();
-    startVitaminDReminder();
-    // Register Telegram webhook if credentials are available
-    const appUrl = process.env.VITE_APP_URL || "https://babytrackr-gszrhnzr.manus.space";
-    if (process.env.NODE_ENV === "production") {
-      try {
-        await setWebhook(`${appUrl}/api/telegram/webhook`);
-        // Small delay to ensure webhook is registered before sending notification
-        setTimeout(() => notifyDeployment().catch(console.error), 3000);
-      } catch (err) {
-        console.error("[Webhook] Failed to register:", err);
+    // When SPLIT_BOT=1, bot + schedulers run as a separate process
+    if (!splitBot) {
+      startTelegramScheduler();
+      startFeedingReminder();
+      startVitaminDReminder();
+      // Register Telegram webhook if credentials are available
+      const appUrl = process.env.VITE_APP_URL || "https://babytrackr-gszrhnzr.manus.space";
+      if (process.env.NODE_ENV === "production") {
+        try {
+          await setWebhook(`${appUrl}/api/telegram/webhook`);
+          // Small delay to ensure webhook is registered before sending notification
+          setTimeout(() => notifyDeployment().catch(console.error), 3000);
+        } catch (err) {
+          console.error("[Webhook] Failed to register:", err);
+        }
       }
+    } else {
+      console.log("[Server] Bot split mode enabled — schedulers run in separate process");
     }
   });
 }

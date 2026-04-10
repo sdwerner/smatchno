@@ -5,7 +5,7 @@
  * If not logged by noon Vienna time, sends a reminder every 2 hours until logged.
  */
 
-import { hasVitaminDToday } from "./db";
+import { hasVitaminDToday, getTelegramSettings } from "./db";
 import { sendMessage } from "./telegramBot";
 import { fromZonedTime, toZonedTime } from "date-fns-tz";
 import { startOfDay, endOfDay } from "date-fns";
@@ -33,7 +33,8 @@ function getViennaHour(nowMs: number): number {
 }
 
 async function checkVitaminD() {
-  const chatId = process.env.TELEGRAM_CHAT_ID;
+  const settings = await getTelegramSettings();
+  const chatId = settings?.chatId;
   if (!chatId) return;
 
   const now = Date.now();

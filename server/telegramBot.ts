@@ -1,5 +1,5 @@
 import axios from "axios";
-import { getDb, deleteLastFeedingSession, deleteLastDiaperChange, insertFeedingSession, insertDiaperChange, getLastFeedingSession, getLastDiaperChange, getFeedingSessionsForDay, getDiaperChangesForDay } from "./db";
+import { getDb, getTelegramSettings, deleteLastFeedingSession, deleteLastDiaperChange, insertFeedingSession, insertDiaperChange, getLastFeedingSession, getLastDiaperChange, getFeedingSessionsForDay, getDiaperChangesForDay } from "./db";
 import { setSnooze, clearSnooze, getSnoozeRemaining, getLastReminderSent } from "./feedingReminder";
 import { feedingSessions, diaperChanges } from "../drizzle/schema";
 import { and, gte, lte, desc, eq } from "drizzle-orm";
@@ -37,9 +37,24 @@ function viennaDayEnd(ms: number): number {
   return fromVienna(endOfDay(toVienna(ms)));
 }
 
-// Read token lazily so env vars are available after server startup
+// Cached bot credentials — populated on startup from DB, refreshed periodically.
+let _cachedBotToken: string | null = null;
+let _cachedChatId: string | null = null;
+
+/** Refresh the cached bot token and chat ID from the DB. Called on startup. */
+export async function refreshBotCredentials(): Promise<void> {
+  try {
+    const settings = await getTelegramSettings();
+    _cachedBotToken = settings?.botToken ?? null;
+    _cachedChatId = settings?.chatId ?? null;
+  } catch {
+    // Keep whatever was cached before; env fallback is last resort during cold start
+  }
+}
+
+// Read token from DB cache; fall back to env var only during initial cold-start window
 function getBotToken(): string {
-  return process.env.TELEGRAM_BOT_TOKEN || "";
+  return _cachedBotToken || process.env.TELEGRAM_BOT_TOKEN || "";
 }
 function getApiBase(): string {
   return `https://api.telegram.org/bot${getBotToken()}`;
@@ -1494,7 +1509,7 @@ export async function handleWebhookUpdate(update: TelegramUpdate) {
  */
 export async function notifyDeployment(): Promise<void> {
   const token = getBotToken();
-  const chatId = process.env.TELEGRAM_CHAT_ID;
+  const chatId = _cachedChatId || process.env.TELEGRAM_CHAT_ID;
   if (!token || !chatId) return; // silently skip if not configured
 
   try {

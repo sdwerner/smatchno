@@ -238,9 +238,8 @@ const analyticsRouter = router({
 
 export async function sendTelegramDigest(dateMs: number) {
   const settings = await getTelegramSettings();
-  // Fall back to env vars if DB settings not configured
-  const botToken = settings?.botToken || process.env.TELEGRAM_BOT_TOKEN;
-  const chatId = settings?.chatId || process.env.TELEGRAM_CHAT_ID;
+  const botToken = settings?.botToken;
+  const chatId = settings?.chatId;
   if (!botToken || !chatId) return { skipped: true };
   if (settings && !settings.enabled) return { skipped: true };
 

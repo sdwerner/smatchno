@@ -392,6 +392,41 @@ export async function upsertTelegramSettings(data: {
   });
 }
 
+/**
+ * Seed telegram_settings from environment variables if the DB row is empty or
+ * missing credentials. Called once on startup so the DB becomes the single
+ * source of truth for bot token / chat ID.
+ */
+export async function seedTelegramSettingsFromEnv(): Promise<void> {
+  const envToken = process.env.TELEGRAM_BOT_TOKEN;
+  const envChatId = process.env.TELEGRAM_CHAT_ID;
+  if (!envToken && !envChatId) return; // nothing to seed
+
+  try {
+    const existing = await getTelegramSettings();
+    if (existing?.botToken && existing?.chatId) return; // already populated
+
+    const data: {
+      botToken?: string;
+      chatId?: string;
+      enabled?: boolean;
+    } = {};
+
+    if (envToken && !existing?.botToken) data.botToken = envToken;
+    if (envChatId && !existing?.chatId) data.chatId = envChatId;
+
+    if (Object.keys(data).length === 0) return;
+
+    // If creating a new row, enable by default when both credentials are available
+    if (!existing) data.enabled = !!(envToken && envChatId);
+
+    await upsertTelegramSettings(data);
+    console.log("[Database] Telegram settings seeded from environment variables");
+  } catch (err) {
+    console.warn("[Database] Failed to seed Telegram settings from env:", err);
+  }
+}
+
 // ─── Vitamin D Logs ───────────────────────────────────────────────────────────
 
 export async function insertVitaminDLog(data: InsertVitaminDLog) {

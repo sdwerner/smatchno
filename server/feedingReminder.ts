@@ -1,4 +1,4 @@
-import { getRecentFeedingSessions } from "./db";
+import { getRecentFeedingSessions, getTelegramSettings } from "./db";
 import { sendMessage } from "./telegramBot";
 import { format } from "date-fns";
 
@@ -49,7 +49,8 @@ function formatMs(ms: number): string {
 let reminderInterval: ReturnType<typeof setInterval> | null = null;
 
 async function checkFeedings() {
-  const chatId = process.env.TELEGRAM_CHAT_ID;
+  const settings = await getTelegramSettings();
+  const chatId = settings?.chatId;
   if (!chatId) return;
 
   // Respect global snooze

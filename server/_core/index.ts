@@ -3,7 +3,8 @@ import express from "express";
 import { startTelegramScheduler } from "../telegramScheduler";
 import { startFeedingReminder } from "../feedingReminder";
 import { startVitaminDReminder } from "../vitaminDReminder";
-import { handleWebhookUpdate, setWebhook, notifyDeployment } from "../telegramBot";
+import { handleWebhookUpdate, setWebhook, notifyDeployment, refreshBotCredentials } from "../telegramBot";
+import { seedTelegramSettingsFromEnv } from "../db";
 import { createServer } from "http";
 import net from "net";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
@@ -42,8 +43,6 @@ async function startServer() {
 
   // Telegram webhook endpoint
   app.post("/api/telegram/webhook", async (req, res) => {
-    const token = process.env.TELEGRAM_BOT_TOKEN;
-    console.log(`[Webhook] Received update. Token present: ${!!token}, Token length: ${token?.length ?? 0}`);
     try {
       await handleWebhookUpdate(req.body);
     } catch (err) {
@@ -76,13 +75,18 @@ async function startServer() {
 
   server.listen(port, async () => {
     console.log(`Server running on http://localhost:${port}/`);
+
+    // Seed Telegram settings from env vars into DB (one-time),
+    // then populate the in-memory cache used by the bot.
+    await seedTelegramSettingsFromEnv();
+    await refreshBotCredentials();
+
     startTelegramScheduler();
     startFeedingReminder();
     startVitaminDReminder();
-    // Register Telegram webhook if token is available
-    const token = process.env.TELEGRAM_BOT_TOKEN;
+    // Register Telegram webhook if credentials are available
     const appUrl = process.env.VITE_APP_URL || "https://babytrackr-gszrhnzr.manus.space";
-    if (token && process.env.NODE_ENV === "production") {
+    if (process.env.NODE_ENV === "production") {
       try {
         await setWebhook(`${appUrl}/api/telegram/webhook`);
         // Small delay to ensure webhook is registered before sending notification

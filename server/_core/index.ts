@@ -52,15 +52,6 @@ async function startServer() {
     res.sendStatus(200);
   });
 
-  // Debug endpoint — remove after confirming bot works
-  app.get("/api/debug/env", (_req, res) => {
-    res.json({
-      hasToken: !!process.env.TELEGRAM_BOT_TOKEN,
-      tokenLength: process.env.TELEGRAM_BOT_TOKEN?.length ?? 0,
-      chatId: process.env.TELEGRAM_CHAT_ID ?? "(not set)",
-      nodeEnv: process.env.NODE_ENV,
-    });
-  });
   // tRPC API
   app.use(
     "/api/trpc",

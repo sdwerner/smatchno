@@ -255,7 +255,6 @@ export async function updateFeedingSession(
     rightStart: number | null;
     rightEnd: number | null;
     bottleMl: number | null;
-    bottleType: string | null;
     notes: string | null;
     createdAt: number;
   }>

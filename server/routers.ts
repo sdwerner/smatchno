@@ -318,7 +318,7 @@ export async function sendTelegramDigest(dateMs: number) {
 
 const vitaminDRouter = router({
   /** Log that a child received their Vitamin D today. */
-  log: publicProcedure
+  log: protectedProcedure
     .input(
       z.object({
         child: childSchema,
@@ -326,12 +326,12 @@ const vitaminDRouter = router({
         notes: z.string().optional(),
       })
     )
-    .mutation(async ({ input }) => {
+    .mutation(async ({ ctx, input }) => {
       await insertVitaminDLog({
         child: input.child,
         givenAt: input.givenAt,
         notes: input.notes ?? null,
-        loggedBy: null,
+        loggedBy: ctx.user.id,
         createdAt: Date.now(),
       });
       return { success: true };

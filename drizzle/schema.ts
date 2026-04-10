@@ -92,3 +92,23 @@ export const vitaminDLogs = mysqlTable("vitamin_d_logs", {
 
 export type VitaminDLog = typeof vitaminDLogs.$inferSelect;
 export type InsertVitaminDLog = typeof vitaminDLogs.$inferInsert;
+
+// Scheduler state — persists scheduler bookkeeping so it survives restarts.
+// Single row (id=1), keyed columns for each scheduler.
+export const schedulerState = mysqlTable("scheduler_state", {
+  id: int("id").autoincrement().primaryKey(),
+  // Digest scheduler: "YYYY-MM-DD" of the last successfully sent daily digest
+  lastDigestSentDate: varchar("lastDigestSentDate", { length: 10 }),
+  // Feeding reminder: UTC ms of the last reminder sent per child
+  lastFeedingReminderNica: bigint("lastFeedingReminderNica", { mode: "number" }),
+  lastFeedingReminderNici: bigint("lastFeedingReminderNici", { mode: "number" }),
+  // Vitamin D reminder: UTC ms of the last reminder sent per child
+  lastVitaminDReminderNica: bigint("lastVitaminDReminderNica", { mode: "number" }),
+  lastVitaminDReminderNici: bigint("lastVitaminDReminderNici", { mode: "number" }),
+  // Global feeding-reminder snooze until (UTC ms, 0 = no snooze)
+  feedingSnoozeUntil: bigint("feedingSnoozeUntil", { mode: "number" }).default(0).notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type SchedulerState = typeof schedulerState.$inferSelect;
+export type InsertSchedulerState = typeof schedulerState.$inferInsert;

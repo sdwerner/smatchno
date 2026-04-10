@@ -1,6 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 // Mock the db module so tests don't need a real database
+// Stateful scheduler state for tests that depend on snooze persistence
+let _mockSchedulerState: Record<string, unknown> | null = null;
 vi.mock("./db", () => ({
   getDb: vi.fn().mockResolvedValue(null),
   // Write helpers: throw to simulate DB unavailable (tests check for error message)
@@ -16,6 +18,11 @@ vi.mock("./db", () => ({
   deleteLastFeedingSession: vi.fn().mockRejectedValue(new Error("Database not available")),
   deleteLastDiaperChange: vi.fn().mockRejectedValue(new Error("Database not available")),
   getTelegramSettings: vi.fn().mockResolvedValue(null),
+  // Scheduler state: stateful mock to support snooze tests
+  getSchedulerState: vi.fn().mockImplementation(async () => _mockSchedulerState),
+  updateSchedulerState: vi.fn().mockImplementation(async (data: Record<string, unknown>) => {
+    _mockSchedulerState = { ...(_mockSchedulerState ?? {}), ...data };
+  }),
 }));
 
 // Mock axios to capture sendMessage calls

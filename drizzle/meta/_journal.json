@@ -22,6 +22,13 @@
       "when": 1775014850765,
       "tag": "0002_tearful_rocket_racer",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "5",
+      "when": 1775943452000,
+      "tag": "0003_scheduler_state",
+      "breakpoints": true
     }
   ]
 }

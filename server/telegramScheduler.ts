@@ -1,8 +1,7 @@
-import { getTelegramSettings } from "./db";
+import { getTelegramSettings, getSchedulerState, updateSchedulerState } from "./db";
 import { sendTelegramDigest } from "./routers";
 
 let schedulerInterval: ReturnType<typeof setInterval> | null = null;
-let lastSentDate: string | null = null;
 
 function getLocalDateString(offsetMinutes: number): string {
   const now = new Date();
@@ -28,10 +27,15 @@ async function checkAndSendDigest() {
     const currentHHMM = getLocalHHMM(settings.timezoneOffset);
     const currentDate = getLocalDateString(settings.timezoneOffset);
 
+    // Read persisted state from DB
+    const state = await getSchedulerState();
+    const lastSentDate = state?.lastDigestSentDate ?? null;
+
     // Check if it's time to send and we haven't sent today
     if (currentHHMM === settings.digestTime && lastSentDate !== currentDate) {
       console.log(`[TelegramScheduler] Sending daily digest for ${currentDate}`);
-      lastSentDate = currentDate;
+      // Persist to DB immediately (before sending) to prevent duplicates on crash
+      await updateSchedulerState({ lastDigestSentDate: currentDate });
       // Use local midnight as the reference date for the digest
       const utcMs = Date.now() + new Date().getTimezoneOffset() * 60_000;
       const localMs = utcMs + settings.timezoneOffset * 60_000;

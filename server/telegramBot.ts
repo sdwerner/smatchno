@@ -1002,7 +1002,7 @@ async function handleStatus(chatId: number, lang: Lang) {
   const dbIcon = dbOk ? "✅" : "❌";
 
   // Snooze state
-  const snoozeRemaining = getSnoozeRemaining();
+  const snoozeRemaining = await getSnoozeRemaining();
   const snoozeH = Math.floor(snoozeRemaining / 3_600_000);
   const snoozeM = Math.floor((snoozeRemaining % 3_600_000) / 60_000);
   const snoozeStr = snoozeRemaining > 0
@@ -1010,8 +1010,8 @@ async function handleStatus(chatId: number, lang: Lang) {
     : null;
 
   // Last reminder sent per child
-  function fmtReminder(child: string): string {
-    const ts = getLastReminderSent(child);
+  async function fmtReminder(child: string): Promise<string> {
+    const ts = await getLastReminderSent(child);
     if (!ts) return lang === "de" ? "noch nie" : lang === "uk" ? "ніколи" : "never";
     const elapsed = Date.now() - ts;
     const h = Math.floor(elapsed / 3_600_000);
@@ -1023,8 +1023,8 @@ async function handleStatus(chatId: number, lang: Lang) {
            `${timeStr} (${agoStr} ago)`;
   }
 
-  const nicaReminder = fmtReminder("nica");
-  const niciReminder = fmtReminder("nici");
+  const nicaReminder = await fmtReminder("nica");
+  const niciReminder = await fmtReminder("nici");
 
   const snoozeLineEn = snoozeStr ? `🔕 Reminders snoozed for <b>${snoozeStr}</b>` : `🔔 Reminders active`;
   const snoozeLineDe = snoozeStr ? `🔕 Erinnerungen noch <b>${snoozeStr}</b> stummgeschaltet` : `🔔 Erinnerungen aktiv`;
@@ -1107,7 +1107,7 @@ async function handleSnooze(args: string[], chatId: number, lang: Lang) {
 
   // /snooze off — cancel active snooze
   if (arg === "off" || arg === "aus" || arg === "вимк") {
-    clearSnooze();
+    await clearSnooze();
     const msg = {
       en: "✅ Snooze cancelled — feeding reminders are active again.",
       de: "✅ Snooze beendet — Erinnerungen sind wieder aktiv.",
@@ -1118,7 +1118,7 @@ async function handleSnooze(args: string[], chatId: number, lang: Lang) {
 
   // /snooze (no args) — show current status
   if (!arg) {
-    const remaining = getSnoozeRemaining();
+    const remaining = await getSnoozeRemaining();
     if (remaining <= 0) {
       const msg = {
         en: "🔔 Reminders are active. Use <code>/snooze 2h</code> or <code>/snooze 30m</code> to silence.",
@@ -1162,7 +1162,7 @@ async function handleSnooze(args: string[], chatId: number, lang: Lang) {
     return sendMessage(chatId, msg[lang]);
   }
 
-  setSnooze(Date.now() + durationMs);
+  await setSnooze(Date.now() + durationMs);
 
   const timeStr = hours > 0 && minutes > 0 ? `${hours}h ${minutes}m` : hours > 0 ? `${hours}h` : `${minutes}m`;
   const msg = {

@@ -1,4 +1,4 @@
-import { getRecentFeedingSessions, getTelegramSettings } from "./db";
+import { getRecentFeedingSessions, getTelegramSettings, getSchedulerState, updateSchedulerState } from "./db";
 import { sendMessage } from "./telegramBot";
 import { format } from "date-fns";
 
@@ -6,30 +6,33 @@ const REMINDER_THRESHOLD_MS = 3 * 60 * 60 * 1000; // 3 hours
 const CHECK_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
 const SNOOZE_AFTER_REMINDER_MS = 60 * 60 * 1000; // don't re-alert for 1h after each reminder
 
-const lastReminderSent: Record<string, number> = {};
-
 /** Returns the last time a reminder was sent for a child (ms epoch), or 0 if never. */
-export function getLastReminderSent(child: string): number {
-  return lastReminderSent[child] ?? 0;
+export async function getLastReminderSent(child: string): Promise<number> {
+  const state = await getSchedulerState();
+  if (!state) return 0;
+  if (child === "nica") return state.lastFeedingReminderNica ?? 0;
+  if (child === "nici") return state.lastFeedingReminderNici ?? 0;
+  return 0;
 }
 
 // ─── Global snooze ───────────────────────────────────────────────────────────
-// When set, ALL feeding reminders are suppressed until this timestamp.
-let globalSnoozeUntil = 0;
+// Snooze state is persisted in scheduler_state.feedingSnoozeUntil.
 
 /** Snooze all feeding reminders until `until` (ms epoch). */
-export function setSnooze(until: number): void {
-  globalSnoozeUntil = until;
+export async function setSnooze(until: number): Promise<void> {
+  await updateSchedulerState({ feedingSnoozeUntil: until });
 }
 
 /** Cancel any active snooze immediately. */
-export function clearSnooze(): void {
-  globalSnoozeUntil = 0;
+export async function clearSnooze(): Promise<void> {
+  await updateSchedulerState({ feedingSnoozeUntil: 0 });
 }
 
 /** Returns ms remaining in the current snooze, or 0 if not snoozed. */
-export function getSnoozeRemaining(): number {
-  const remaining = globalSnoozeUntil - Date.now();
+export async function getSnoozeRemaining(): Promise<number> {
+  const state = await getSchedulerState();
+  const snoozeUntil = state?.feedingSnoozeUntil ?? 0;
+  const remaining = snoozeUntil - Date.now();
   return remaining > 0 ? remaining : 0;
 }
 
@@ -54,7 +57,7 @@ async function checkFeedings() {
   if (!chatId) return;
 
   // Respect global snooze
-  if (getSnoozeRemaining() > 0) return;
+  if (await getSnoozeRemaining() > 0) return;
 
   const now = Date.now();
 
@@ -78,10 +81,14 @@ async function checkFeedings() {
       if (elapsed < REMINDER_THRESHOLD_MS) continue;
 
       // Don't re-alert within 1h of the last reminder for this child
-      const lastSent = lastReminderSent[child] ?? 0;
+      const lastSent = await getLastReminderSent(child);
       if (now - lastSent < SNOOZE_AFTER_REMINDER_MS) continue;
 
-      lastReminderSent[child] = now;
+      // Persist the reminder timestamp to DB
+      const updateData = child === "nica"
+        ? { lastFeedingReminderNica: now }
+        : { lastFeedingReminderNici: now };
+      await updateSchedulerState(updateData);
 
       const childLabel = child === "nica" ? "Nica" : "Nici";
       const lastTimeStr = format(new Date(actualFeedTime), "HH:mm");

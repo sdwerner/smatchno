@@ -5,7 +5,7 @@
  * If not logged by noon Vienna time, sends a reminder every 2 hours until logged.
  */
 
-import { hasVitaminDToday, getTelegramSettings } from "./db";
+import { hasVitaminDToday, getTelegramSettings, getSchedulerState, updateSchedulerState } from "./db";
 import { sendMessage } from "./telegramBot";
 import { fromZonedTime, toZonedTime } from "date-fns-tz";
 import { startOfDay, endOfDay } from "date-fns";
@@ -14,8 +14,6 @@ const APP_TZ = "Europe/Vienna";
 const CHECK_INTERVAL_MS = 30 * 60 * 1000; // 30 minutes
 const REMINDER_INTERVAL_MS = 2 * 60 * 60 * 1000; // 2 hours between reminders
 const NOON_HOUR = 12; // Only start reminding after noon Vienna time
-
-const lastReminderSent: Record<string, number> = {};
 
 let reminderInterval: ReturnType<typeof setInterval> | null = null;
 
@@ -49,16 +47,25 @@ async function checkVitaminD() {
   const dayStartMs = viennaDayStart(now);
   const dayEndMs = viennaDayEnd(now);
 
+  // Read persisted state from DB
+  const state = await getSchedulerState();
+
   for (const child of ["nica", "nici"] as const) {
     try {
       const alreadyGiven = await hasVitaminDToday(child, dayStartMs, dayEndMs);
       if (alreadyGiven) continue;
 
       // Check snooze: don't send another reminder within 2h of the last one
-      const lastSent = lastReminderSent[child] ?? 0;
+      const lastSent = child === "nica"
+        ? (state?.lastVitaminDReminderNica ?? 0)
+        : (state?.lastVitaminDReminderNici ?? 0);
       if (now - lastSent < REMINDER_INTERVAL_MS) continue;
 
-      lastReminderSent[child] = now;
+      // Persist the reminder timestamp to DB
+      const updateData = child === "nica"
+        ? { lastVitaminDReminderNica: now }
+        : { lastVitaminDReminderNici: now };
+      await updateSchedulerState(updateData);
 
       const childLabel = child === "nica" ? "Nica" : "Nici";
       const childIcon = child === "nica" ? "👧" : "👶";

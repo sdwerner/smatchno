@@ -1,7 +1,7 @@
 import { eq, and, gte, lte, desc } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import { createPool, type Pool } from "mysql2";
-import { InsertUser, users, feedingSessions, diaperChanges, telegramSettings, vitaminDLogs, InsertFeedingSession, InsertDiaperChange, InsertVitaminDLog } from "../drizzle/schema";
+import { InsertUser, users, feedingSessions, diaperChanges, telegramSettings, vitaminDLogs, schedulerState, InsertFeedingSession, InsertDiaperChange, InsertVitaminDLog, type SchedulerState } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -496,5 +496,40 @@ export async function hasVitaminDToday(
       )
       .limit(1);
     return rows.length > 0;
+  });
+}
+
+// ─── Scheduler State ──────────────────────────────────────────────────────────
+
+/** Get the single scheduler_state row (id=1), or null if not yet created. */
+export async function getSchedulerState(): Promise<SchedulerState | null> {
+  return withRetry(async () => {
+    const db = await getDb();
+    if (!db) return null;
+    const rows = await db.select().from(schedulerState).limit(1);
+    return rows.length > 0 ? rows[0] : null;
+  });
+}
+
+/** Update (or insert) the scheduler_state row. Upserts on first call. */
+export async function updateSchedulerState(
+  data: Partial<{
+    lastDigestSentDate: string | null;
+    lastFeedingReminderNica: number | null;
+    lastFeedingReminderNici: number | null;
+    lastVitaminDReminderNica: number | null;
+    lastVitaminDReminderNici: number | null;
+    feedingSnoozeUntil: number;
+  }>
+): Promise<void> {
+  return withRetry(async () => {
+    const db = await getDb();
+    if (!db) throw new Error("Database not available");
+    const existing = await getSchedulerState();
+    if (existing) {
+      await db.update(schedulerState).set(data).where(eq(schedulerState.id, existing.id));
+    } else {
+      await db.insert(schedulerState).values(data);
+    }
   });
 }
